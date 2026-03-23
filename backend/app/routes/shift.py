@@ -5,6 +5,9 @@ from app.database.base import get_db
 from app.models.shift import Shift, Snapshot
 from app.schemas.shift import ShiftStartRequest, ShiftStartResponse, ShiftEndResponse
 from app.schemas.snapshot import SnapshotRequest, SnapshotResponse
+from app.schemas.common import FatigueLevel
+from app.services.feature_engineering import compute_features
+from app.services.predictor import predict_fatigue, get_fatigue_level
 
 router = APIRouter(prefix="/shift", tags=["shift"])
 
@@ -45,12 +48,41 @@ def create_snapshot(shift_id: int, payload: SnapshotRequest, db: Session = Depen
     db.commit()
     db.refresh(snapshot)
 
-    # TODO: appeler le service de feature engineering + scoring
-    # pour l'instant on retourne des valeurs placeholder
+    # compute features from shift history and current snapshot
+    all_snapshots = db.query(Snapshot).filter(Snapshot.shift_id == shift_id).all()
+    features = compute_features(shift, snapshot, all_snapshots)
+
+    # save computed features to snapshot for later ML prediction
+    snapshot.shift_duration_h = features["shift_duration_h"]
+    snapshot.active_driving_h = features["active_driving_h"]
+    snapshot.time_since_last_break_min = features["time_since_last_break_min"]
+    snapshot.break_count = features["break_count"]
+    snapshot.total_break_min = features["total_break_min"]
+    snapshot.driving_ratio = features["driving_ratio"]
+    snapshot.is_night = features["is_night"]
+    snapshot.is_post_lunch_dip = features["is_post_lunch_dip"]
+    snapshot.hour_sin = features["hour_sin"]
+    snapshot.hour_cos = features["hour_cos"]
+
+    # predict fatigue score using ML model
+    try:
+        fatigue_score = predict_fatigue(features)
+    except FileNotFoundError:
+        # Model not trained yet, use placeholder
+        fatigue_score = 0.0
+
+    fatigue_level = get_fatigue_level(fatigue_score)
+
+    # save predictions to snapshot
+    snapshot.fatigue_score = fatigue_score
+    snapshot.fatigue_level = fatigue_level.value
+
+    db.commit()
+
     return SnapshotResponse(
         snapshot_id=snapshot.id,
-        fatigue_score=0.0,
-        fatigue_level="low",
+        fatigue_score=fatigue_score,
+        fatigue_level=fatigue_level,
         suggestion=None,
     )
 
@@ -73,10 +105,16 @@ def end_shift(shift_id: int, db: Session = Depends(get_db)):
 
     duration_h = (shift.ended_at - shift.started_at).total_seconds() / 3600
 
-    # TODO: calculer les vraies metriques via le service
-    shift.active_driving_h = 0.0
-    shift.total_break_min = 0.0
-    shift.break_count = 0
+    # calculate aggregate metrics from the last snapshot
+    if snapshots:
+        last_snapshot = max(snapshots, key=lambda s: s.timestamp)
+        shift.active_driving_h = last_snapshot.active_driving_h or 0.0
+        shift.total_break_min = last_snapshot.total_break_min or 0.0
+        shift.break_count = last_snapshot.break_count or 0
+    else:
+        shift.active_driving_h = 0.0
+        shift.total_break_min = 0.0
+        shift.break_count = 0
 
     db.commit()
     db.refresh(shift)
