@@ -20,6 +20,10 @@ class Shift(Base):
     total_break_min = Column(Float, nullable=True)
     break_count = Column(Integer, nullable=True)
 
+    # suivi des suggestions (pour éviter le harcèlement)
+    last_suggestion_time = Column(DateTime, nullable=True)
+    last_fatigue_level = Column(String(20), nullable=True)
+
     created_at = Column(DateTime, default=datetime.utcnow)
 
     snapshots = relationship(

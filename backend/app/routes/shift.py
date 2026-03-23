@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from datetime import datetime
 
 from app.database.base import get_db
 from app.models.shift import Shift, Snapshot
@@ -8,6 +9,7 @@ from app.schemas.snapshot import SnapshotRequest, SnapshotResponse
 from app.schemas.common import FatigueLevel
 from app.services.feature_engineering import compute_features
 from app.services.predictor import predict_fatigue, get_fatigue_level
+from app.services.suggestion import generate_suggestion, should_generate_suggestion
 
 router = APIRouter(prefix="/shift", tags=["shift"])
 
@@ -68,10 +70,24 @@ def create_snapshot(shift_id: int, payload: SnapshotRequest, db: Session = Depen
     try:
         fatigue_score = predict_fatigue(features)
     except FileNotFoundError:
-        # Model not trained yet, use placeholder
+        # model not trained yet, use placeholder
         fatigue_score = 0.0
 
     fatigue_level = get_fatigue_level(fatigue_score)
+
+    # generate suggestion with anti-harassment logic
+    suggestion = None
+    if should_generate_suggestion(fatigue_level, shift.last_suggestion_time, shift.last_fatigue_level):
+        suggestion = generate_suggestion(fatigue_score, fatigue_level, features)
+        if suggestion:
+            # save suggestion to snapshot
+            snapshot.suggestion_given = 1
+            snapshot.suggestion_message = suggestion.message
+            snapshot.suggestion_delivery = suggestion.delivery
+            
+            # update shift tracking
+            shift.last_suggestion_time = datetime.utcnow()
+            shift.last_fatigue_level = fatigue_level.value
 
     # save predictions to snapshot
     snapshot.fatigue_score = fatigue_score
@@ -83,7 +99,7 @@ def create_snapshot(shift_id: int, payload: SnapshotRequest, db: Session = Depen
         snapshot_id=snapshot.id,
         fatigue_score=fatigue_score,
         fatigue_level=fatigue_level,
-        suggestion=None,
+        suggestion=suggestion,
     )
 
 
