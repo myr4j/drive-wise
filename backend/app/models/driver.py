@@ -1,13 +1,11 @@
 from sqlalchemy import Column, Integer, String, DateTime, Boolean
 from sqlalchemy.orm import relationship
 from datetime import datetime
-from passlib.context import CryptContext
 
 from app.database.base import Base
 
-
-# contexte de hachage de mot de passe
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# import bcrypt directement pour éviter les problèmes de compatibilité
+import bcrypt
 
 
 class Driver(Base):
@@ -30,8 +28,14 @@ class Driver(Base):
         return f"<Driver id={self.id} email={self.email}>"
 
     def verify_password(self, plain_password: str) -> bool:
-        return pwd_context.verify(plain_password, self.hashed_password)
+        return bcrypt.checkpw(
+            plain_password.encode("utf-8"),
+            self.hashed_password.encode("utf-8")
+        )
 
     @staticmethod
     def hash_password(plain_password: str) -> str:
-        return pwd_context.hash(plain_password)
+        return bcrypt.hashpw(
+            plain_password.encode("utf-8"),
+            bcrypt.gensalt()
+        ).decode("utf-8")
