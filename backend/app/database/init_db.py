@@ -1,5 +1,6 @@
 from app.database.base import engine, Base
 from app.models.shift import Shift, Snapshot  # noqa: F401
+from app.models.driver import Driver  # noqa: F401
 
 
 def init_db():

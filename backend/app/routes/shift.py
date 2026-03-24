@@ -1,9 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from datetime import datetime
+from sqlalchemy import and_, func
+from datetime import datetime, timedelta
+from typing import Optional, List
 
 from app.database.base import get_db
 from app.models.shift import Shift, Snapshot
+from app.models.driver import Driver
 from app.schemas.shift import ShiftStartRequest, ShiftStartResponse, ShiftEndResponse
 from app.schemas.snapshot import SnapshotRequest, SnapshotResponse
 from app.schemas.common import FatigueLevel
@@ -12,20 +15,30 @@ from app.services.predictor import predict_fatigue, get_fatigue_level
 from app.services.suggestion import generate_suggestion, should_generate_suggestion
 from app.services.shap_explainer import explain_prediction, generate_explanation_text, get_feature_importance
 from app.schemas.snapshot import ShapExplanation, ShapContribution
+from app.schemas.shifts_list import ShiftListItem, ShiftsListResponse, DriverStatsResponse
 
 router = APIRouter(prefix="/shift", tags=["shift"])
 
 
 @router.post("/start", response_model=ShiftStartResponse, status_code=201)
-def start_shift(payload: ShiftStartRequest, db: Session = Depends(get_db)):
-    active = db.query(Shift).filter(Shift.status == "active").first()
+def start_shift(
+    payload: ShiftStartRequest,
+    db: Session = Depends(get_db),
+    driver_id: Optional[int] = Query(None, description="ID du chauffeur"),
+):
+    # vérifie pas de shift actif pour ce driver
+    query = db.query(Shift).filter(Shift.status == "active")
+    if driver_id:
+        query = query.filter(Shift.driver_id == driver_id)
+    
+    active = query.first()
     if active:
         raise HTTPException(
             status_code=409,
             detail=f"Shift {active.id} deja actif. Terminez-le avant d'en demarrer un nouveau."
         )
 
-    shift = Shift(started_at=payload.started_at, status="active")
+    shift = Shift(started_at=payload.started_at, status="active", driver_id=driver_id)
     db.add(shift)
     db.commit()
     db.refresh(shift)
@@ -253,3 +266,209 @@ def get_ml_feature_importance():
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"erreur lors du chargement du modèle: {str(e)}")
+
+
+@router.get("/s", response_model=ShiftsListResponse)
+def list_shifts(
+    db: Session = Depends(get_db),
+    driver_id: Optional[int] = Query(None, description="filtrer par ID du chauffeur"),
+    status: Optional[str] = Query(None, description="filtrer par statut (active/completed)"),
+    from_date: Optional[datetime] = Query(None, description="date de début (ISO 8601)"),
+    to_date: Optional[datetime] = Query(None, description="date de fin (ISO 8601)"),
+    page: int = Query(1, ge=1, description="numéro de page"),
+    per_page: int = Query(20, ge=1, le=100, description="nombre d'éléments par page"),
+):
+    """
+    retourne la liste des shifts avec pagination et filtres.
+    """
+    # construit la query de base
+    query = db.query(Shift)
+    
+    # applique les filtres
+    if driver_id is not None:
+        query = query.filter(Shift.driver_id == driver_id)
+    
+    if status:
+        query = query.filter(Shift.status == status)
+    
+    if from_date:
+        query = query.filter(Shift.started_at >= from_date)
+    
+    if to_date:
+        query = query.filter(Shift.started_at <= to_date)
+    
+    # compte le total avant pagination
+    total = query.count()
+    
+    # applique pagination et tri (date décroissante)
+    shifts = (
+        query
+        .order_by(Shift.started_at.desc())
+        .offset((page - 1) * per_page)
+        .limit(per_page)
+        .all()
+    )
+    
+    # calcule le nombre total de pages
+    total_pages = (total + per_page - 1) // per_page
+    
+    # formate la réponse
+    shift_items = []
+    for shift in shifts:
+        # calcule la durée
+        duration_h = None
+        if shift.started_at and shift.ended_at:
+            duration_h = round((shift.ended_at - shift.started_at).total_seconds() / 3600, 2)
+        
+        # récupère les scores de fatigue des snapshots
+        snapshots = db.query(Snapshot).filter(
+            Snapshot.shift_id == shift.id,
+            Snapshot.fatigue_score.isnot(None)
+        ).all()
+        
+        avg_score = None
+        max_score = None
+        if snapshots:
+            scores = [s.fatigue_score for s in snapshots]
+            avg_score = round(sum(scores) / len(scores), 4)
+            max_score = round(max(scores), 4)
+        
+        shift_items.append(ShiftListItem(
+            id=shift.id,
+            driver_id=shift.driver_id,
+            started_at=shift.started_at,
+            ended_at=shift.ended_at,
+            status=shift.status,
+            duration_h=duration_h,
+            avg_fatigue_score=avg_score,
+            max_fatigue_score=max_score,
+        ))
+    
+    return ShiftsListResponse(
+        shifts=shift_items,
+        total=total,
+        page=page,
+        per_page=per_page,
+        total_pages=total_pages,
+    )
+
+
+@router.get("/driver/stats", response_model=DriverStatsResponse)
+def get_driver_stats(
+    db: Session = Depends(get_db),
+    driver_id: Optional[int] = Query(None, description="ID du chauffeur"),
+    from_date: Optional[datetime] = Query(None, description="date de début (ISO 8601)"),
+    to_date: Optional[datetime] = Query(None, description="date de fin (ISO 8601)"),
+):
+    """
+    retourne les statistiques agrégées pour un chauffeur.
+    """
+    # filtre les shifts
+    query = db.query(Shift).filter(Shift.status == "completed")
+    
+    if driver_id is not None:
+        query = query.filter(Shift.driver_id == driver_id)
+    
+    if from_date:
+        query = query.filter(Shift.started_at >= from_date)
+    
+    if to_date:
+        query = query.filter(Shift.started_at <= to_date)
+    
+    shifts = query.all()
+    
+    if not shifts:
+        return DriverStatsResponse(
+            total_shifts=0,
+            total_driving_hours=0.0,
+            total_break_minutes=0.0,
+            avg_breaks_per_shift=0.0,
+            avg_fatigue_score=0.0,
+            max_fatigue_score=0.0,
+            total_fatigue_peaks=0,
+            fatigue_distribution={"low": 0, "moderate": 0, "high": 0, "critical": 0},
+            fatigue_trend_7_days=[],
+        )
+    
+    # métriques de base
+    total_shifts = len(shifts)
+    total_driving_hours = sum(s.active_driving_h or 0.0 for s in shifts)
+    total_break_minutes = sum(s.total_break_min or 0.0 for s in shifts)
+    total_breaks = sum(s.break_count or 0 for s in shifts)
+    avg_breaks_per_shift = round(total_breaks / total_shifts, 2) if total_shifts > 0 else 0.0
+    
+    # récupère tous les scores de fatigue
+    all_scores = []
+    fatigue_distribution = {"low": 0, "moderate": 0, "high": 0, "critical": 0}
+    total_fatigue_peaks = 0
+    
+    for shift in shifts:
+        snapshots = db.query(Snapshot).filter(
+            Snapshot.shift_id == shift.id,
+            Snapshot.fatigue_score.isnot(None)
+        ).all()
+        
+        for snapshot in snapshots:
+            all_scores.append(snapshot.fatigue_score)
+            
+            # distribution par niveau
+            if snapshot.fatigue_score < 0.3:
+                fatigue_distribution["low"] += 1
+            elif snapshot.fatigue_score < 0.6:
+                fatigue_distribution["moderate"] += 1
+            elif snapshot.fatigue_score < 0.8:
+                fatigue_distribution["high"] += 1
+            else:
+                fatigue_distribution["critical"] += 1
+            
+            # compte les pics (> 0.6)
+            if snapshot.fatigue_score > 0.6:
+                total_fatigue_peaks += 1
+    
+    avg_fatigue_score = round(sum(all_scores) / len(all_scores), 4) if all_scores else 0.0
+    max_fatigue_score = round(max(all_scores), 4) if all_scores else 0.0
+    
+    # tendance sur les 7 derniers jours
+    today = datetime.utcnow().date()
+    seven_days_ago = today - timedelta(days=6)
+    
+    fatigue_trend = []
+    for i in range(7):
+        day = seven_days_ago + timedelta(days=i)
+        day_start = datetime.combine(day, datetime.min.time())
+        day_end = datetime.combine(day, datetime.max.time())
+        
+        # scores de ce jour
+        day_scores = db.query(Snapshot.fatigue_score).join(Shift).filter(
+            Shift.started_at >= day_start,
+            Shift.started_at <= day_end,
+            Snapshot.fatigue_score.isnot(None),
+        )
+        
+        if driver_id is not None:
+            day_scores = day_scores.filter(Shift.driver_id == driver_id)
+        
+        day_scores = day_scores.all()
+        
+        if day_scores:
+            avg_score = round(sum(s[0] for s in day_scores) / len(day_scores), 4)
+        else:
+            avg_score = 0.0
+        
+        fatigue_trend.append({
+            "date": day.isoformat(),
+            "avg_fatigue_score": avg_score,
+            "snapshot_count": len(day_scores),
+        })
+    
+    return DriverStatsResponse(
+        total_shifts=total_shifts,
+        total_driving_hours=round(total_driving_hours, 2),
+        total_break_minutes=round(total_break_minutes, 2),
+        avg_breaks_per_shift=avg_breaks_per_shift,
+        avg_fatigue_score=avg_fatigue_score,
+        max_fatigue_score=max_fatigue_score,
+        total_fatigue_peaks=total_fatigue_peaks,
+        fatigue_distribution=fatigue_distribution,
+        fatigue_trend_7_days=fatigue_trend,
+    )

@@ -1,5 +1,6 @@
 import fastapi
 from app.routes.shift import router as shift_router
+from app.routes.auth import router as auth_router
 from app.database.init_db import init_db
 
 app = fastapi.FastAPI(
@@ -7,6 +8,7 @@ app = fastapi.FastAPI(
     description="API de prediction du comportement de conduite",
     version="1.0.0"
 )
+app.include_router(auth_router)
 app.include_router(shift_router)
 
 @app.get("/health")
