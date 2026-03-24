@@ -9,7 +9,7 @@ from app.schemas.common import FatigueLevel
 
 # configuration
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
-GROQ_MODEL = "llama-3.2-3b-preview"
+GROQ_MODEL = "llama-3.2-3b-instant"
 
 # logging
 logger = logging.getLogger(__name__)
@@ -159,3 +159,4 @@ def _generate_fallback_summary(
         break_text = "Aucune pause prise."
     
     return f"Shift de {duration_h:.1f}h terminé. {fatigue_text} {break_text}"
+

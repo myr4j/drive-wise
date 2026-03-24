@@ -10,6 +10,8 @@ from app.schemas.common import FatigueLevel
 from app.services.feature_engineering import compute_features
 from app.services.predictor import predict_fatigue, get_fatigue_level
 from app.services.suggestion import generate_suggestion, should_generate_suggestion
+from app.services.shap_explainer import explain_prediction, generate_explanation_text, get_feature_importance
+from app.schemas.snapshot import ShapExplanation, ShapContribution
 
 router = APIRouter(prefix="/shift", tags=["shift"])
 
@@ -95,11 +97,61 @@ def create_snapshot(shift_id: int, payload: SnapshotRequest, db: Session = Depen
 
     db.commit()
 
+    # generate SHAP explanation (optional, peut échouer si modèle non chargé)
+    explanation = None
+    try:
+        shap_result = explain_prediction(features)
+        explanation_text = generate_explanation_text(shap_result)
+        explanation = ShapExplanation(
+            base_value=shap_result["base_value"],
+            predicted_value=shap_result["predicted_value"],
+            shap_values=shap_result["shap_values"],
+            contributions=[
+                ShapContribution(
+                    feature=c["feature"],
+                    label=c["label"],
+                    value=c["value"],
+                    shap_value=c["shap_value"],
+                    impact=c["impact"],
+                    direction=c["direction"],
+                )
+                for c in shap_result["contributions"]
+            ],
+            top_positive=[
+                ShapContribution(
+                    feature=c["feature"],
+                    label=c["label"],
+                    value=c["value"],
+                    shap_value=c["shap_value"],
+                    impact=c["impact"],
+                    direction=c["direction"],
+                )
+                for c in shap_result["top_positive"]
+            ],
+            top_negative=[
+                ShapContribution(
+                    feature=c["feature"],
+                    label=c["label"],
+                    value=c["value"],
+                    shap_value=c["shap_value"],
+                    impact=c["impact"],
+                    direction=c["direction"],
+                )
+                for c in shap_result["top_negative"]
+            ],
+            feature_importance_ranking=shap_result["feature_importance_ranking"],
+            explanation_text=explanation_text,
+        )
+    except Exception:
+        # explication non critique, on continue sans
+        pass
+
     return SnapshotResponse(
         snapshot_id=snapshot.id,
         fatigue_score=fatigue_score,
         fatigue_level=fatigue_level,
         suggestion=suggestion,
+        explanation=explanation,
     )
 
 
@@ -181,3 +233,23 @@ def get_shift_status(shift_id: int, db: Session = Depends(get_db)):
         "last_fatigue_score": last_snapshot.fatigue_score if last_snapshot else None,
         "last_fatigue_level": last_snapshot.fatigue_level if last_snapshot else None,
     }
+
+
+@router.get("/ml/feature-importance")
+def get_ml_feature_importance():
+    """
+    retourne l'importance globale des features du modèle ML.
+    
+    utile pour comprendre quelles features influencent le plus la prédiction de fatigue.
+    """
+    try:
+        importance = get_feature_importance()
+        return {
+            "status": "success",
+            "feature_importance": importance["importance"],
+            "ranking": importance["ranking"],
+        }
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"erreur lors du chargement du modèle: {str(e)}")

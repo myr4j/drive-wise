@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List, Dict
 from app.schemas.common import FatigueLevel, Suggestion
 
 
@@ -37,6 +37,26 @@ class ComputedFeatures(BaseModel):
     hour_cos: float = Field(ge=-1, le=1)
 
 
+class ShapContribution(BaseModel):
+    feature: str = Field(description="nom technique de la feature")
+    label: str = Field(description="nom lisible de la feature")
+    value: float = Field(description="valeur de la feature")
+    shap_value: float = Field(description="valeur SHAP brute")
+    impact: float = Field(description="impact absolu")
+    direction: str = Field(description="positive (augmente fatigue) ou negative (diminue)")
+
+
+class ShapExplanation(BaseModel):
+    base_value: float = Field(description="valeur de base (prédiction moyenne)")
+    predicted_value: float = Field(description="valeur prédite par le modèle")
+    shap_values: Dict[str, float] = Field(description="valeurs SHAP par feature")
+    contributions: List[ShapContribution] = Field(description="liste des contributions triées")
+    top_positive: List[ShapContribution] = Field(description="features qui augmentent la fatigue")
+    top_negative: List[ShapContribution] = Field(description="features qui diminuent la fatigue")
+    feature_importance_ranking: List[str] = Field(description="classement des features par impact")
+    explanation_text: str = Field(description="explication textuelle naturelle")
+
+
 class SnapshotResponse(BaseModel):
     snapshot_id: int
     fatigue_score: float = Field(
@@ -49,4 +69,8 @@ class SnapshotResponse(BaseModel):
     suggestion: Optional[Suggestion] = Field(
         default=None,
         description="Presente uniquement si fatigue_score >= 0.3"
+    )
+    explanation: Optional[ShapExplanation] = Field(
+        default=None,
+        description="Explication SHAP de la prédiction (optionnel)"
     )
