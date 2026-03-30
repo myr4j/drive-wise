@@ -472,3 +472,62 @@ def get_driver_stats(
         fatigue_distribution=fatigue_distribution,
         fatigue_trend_7_days=fatigue_trend,
     )
+
+
+@router.post("/cleanup/orphaned")
+def cleanup_orphaned_shifts(
+    hours_threshold: int = Query(24, ge=1, description="Nombre d'heures après lequel un shift est considéré orphelin"),
+    db: Session = Depends(get_db),
+):
+    """
+    Termine automatiquement les shifts actifs depuis trop longtemps (orphelins).
+    
+    Un shift est considéré orphelin s'il est resté actif pendant plus de `hours_threshold` heures.
+    Cela peut arriver si l'utilisateur ferme l'app sans terminer son trajet.
+    
+    Retourne le nombre de shifts nettoyés.
+    """
+    threshold_time = datetime.utcnow() - timedelta(hours=hours_threshold)
+    
+    # Trouve les shifts orphelins
+    orphaned_shifts = (
+        db.query(Shift)
+        .filter(
+            and_(
+                Shift.status == "active",
+                Shift.started_at < threshold_time
+            )
+        )
+        .all()
+    )
+    
+    cleaned_count = 0
+    for shift in orphaned_shifts:
+        # Termine le shift
+        shift.status = "completed"
+        shift.ended_at = datetime.utcnow()
+        
+        # Met à jour les métriques avec les snapshots existants
+        snapshots = db.query(Snapshot).filter(Snapshot.shift_id == shift.id).all()
+        
+        if snapshots:
+            shift.active_driving_h = max(s.shift_duration_h or 0.0 for s in snapshots)
+            shift.total_break_min = max(s.total_break_min or 0.0 for s in snapshots)
+            shift.break_count = max(s.break_count or 0 for s in snapshots)
+            shift.last_fatigue_level = snapshots[-1].fatigue_level if snapshots else None
+            shift.last_fatigue_score = snapshots[-1].fatigue_score if snapshots else None
+        else:
+            # Pas de snapshots - shift vide
+            shift.active_driving_h = 0.0
+            shift.total_break_min = 0.0
+            shift.break_count = 0
+        
+        cleaned_count += 1
+    
+    db.commit()
+    
+    return {
+        "message": f"{cleaned_count} shift(s) orphelin(s) terminé(s)",
+        "cleaned_count": cleaned_count,
+        "hours_threshold": hours_threshold,
+    }

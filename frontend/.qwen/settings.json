@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//home/myr4j/Documents/cours-m1/drive-wise/backend/app/schemas/**)",
+      "Read(//home/myr4j/Documents/cours-m1/drive-wise/backend/app/models/**)",
+      "Read(//home/myr4j/Documents/cours-m1/drive-wise/backend/app/services/**)",
+      "Read(//home/myr4j/Documents/cours-m1/drive-wise/backend/app/database/**)",
+      "Bash(kill *)"
+    ]
+  },
+  "$version": 3
+}
