@@ -1,6 +1,5 @@
-import React from 'react';
-import { View, StyleSheet, FlatList, ActivityIndicator } from 'react-native';
-import { Text, Chip, SegmentedButtons } from 'react-native-paper';
+import React, { useCallback, useState } from 'react';
+import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
@@ -9,59 +8,63 @@ import { shiftsApi } from '@/services';
 import ShiftCard from '@/components/shift/ShiftCard';
 import Screen from '@/components/layout/Screen';
 import EmptyState from '@/components/ui/EmptyState';
-import { colors, spacing } from '@/utils/theme';
+import { SkeletonStack } from '@/components/ui/Skeleton';
+import { useTheme } from '@/contexts/ThemeContext';
 import { ShiftListItem } from '@/types/api';
 import { RootStackParamList } from '@/types/navigation';
 
-type HistoryScreenNavigationProp = NativeStackNavigationProp<RootStackParamList>;
-
+type HistoryScreenNavigationProp =
+  NativeStackNavigationProp<RootStackParamList>;
 type FilterStatus = 'all' | 'active' | 'completed';
 
+const FILTERS: { value: FilterStatus; label: string }[] = [
+  { value: 'all', label: 'Tous' },
+  { value: 'completed', label: 'Terminés' },
+  { value: 'active', label: 'En cours' },
+];
+
 export default function HistoryScreen() {
+  const { colors, fonts, spacing, typeScale, borderRadius } = useTheme();
   const navigation = useNavigation<HistoryScreenNavigationProp>();
   const { driver } = useAuthStore();
-  const [shifts, setShifts] = React.useState<ShiftListItem[]>([]);
-  const [isLoading, setIsLoading] = React.useState(false);
-  const [filter, setFilter] = React.useState<FilterStatus>('all');
-  const [page, setPage] = React.useState(1);
-  const [total, setTotal] = React.useState(0);
-  const [refreshing, setRefreshing] = React.useState(false);
 
-  const loadShifts = async (refresh = false) => {
-    if (!driver) return;
+  const [shifts, setShifts] = useState<ShiftListItem[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [filter, setFilter] = useState<FilterStatus>('all');
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
+  const [isFirstLoad, setIsFirstLoad] = useState(true);
 
-    setIsLoading(true);
-    try {
-      const params: Record<string, string | number> = {
-        driver_id: driver.id,
-        page: refresh ? 1 : page,
-        per_page: 20,
-      };
-
-      if (filter !== 'all') {
-        params.status = filter;
+  const loadShifts = useCallback(
+    async (refresh = false) => {
+      if (!driver) return;
+      setIsLoading(true);
+      try {
+        const params: Record<string, string | number> = {
+          driver_id: driver.id,
+          page: refresh ? 1 : page,
+          per_page: 20,
+        };
+        if (filter !== 'all') params.status = filter;
+        const response = await shiftsApi.listShifts(params);
+        if (refresh) setShifts(response.shifts);
+        else setShifts((prev) => [...prev, ...response.shifts]);
+        setTotal(response.total);
+        setPage(response.page);
+      } catch (err) {
+        // silent — handled by global toast in caller patterns
+      } finally {
+        setIsLoading(false);
+        setRefreshing(false);
+        setIsFirstLoad(false);
       }
-
-      const response = await shiftsApi.listShifts(params);
-
-      if (refresh) {
-        setShifts(response.shifts);
-      } else {
-        setShifts((prev) => [...prev, ...response.shifts]);
-      }
-
-      setTotal(response.total);
-      setPage(response.page);
-    } catch (error) {
-      console.error('Error loading shifts:', error);
-    } finally {
-      setIsLoading(false);
-      setRefreshing(false);
-    }
-  };
+    },
+    [driver, page, filter]
+  );
 
   useFocusEffect(
-    React.useCallback(() => {
+    useCallback(() => {
       loadShifts(true);
     }, [driver, filter])
   );
@@ -86,128 +89,123 @@ export default function HistoryScreen() {
     <ShiftCard shift={item} onPress={() => handleShiftPress(item.id)} />
   );
 
-  const renderEmpty = () => (
-    <EmptyState
-      icon="history"
-      title="Aucun trajet"
-      message={
-        filter === 'all'
-          ? "Commencez votre premier trajet pour voir l'historique"
-          : `Aucun trajet ${filter} trouvé`
-      }
-    />
-  );
-
   return (
-    <Screen style={styles.container} edges={{ top: true, bottom: true }}>
-      <View style={styles.header}>
-        <Text variant="titleLarge" style={styles.title}>
-          Historique des trajets
+    <Screen edges={{ top: true, bottom: true }}>
+      {/* Hero header */}
+      <View
+        style={{
+          paddingHorizontal: spacing.lg,
+          paddingTop: spacing.lg,
+          paddingBottom: spacing.md,
+        }}
+      >
+        <Text style={{ ...typeScale.caption, color: colors.inkMuted }}>
+          Vos archives
         </Text>
-
-        <View style={styles.filterContainer}>
-          <SegmentedButtons
-            value={filter}
-            onValueChange={(value: string) => setFilter(value as FilterStatus)}
-            buttons={[
-              {
-                value: 'all',
-                label: 'Tous',
-              },
-              {
-                value: 'completed',
-                label: 'Terminés',
-              },
-              {
-                value: 'active',
-                label: 'En cours',
-              },
-            ]}
-            style={styles.filterButtons}
-          />
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'flex-end',
+            justifyContent: 'space-between',
+          }}
+        >
+          <Text
+            style={{
+              fontFamily: fonts.displayItalic,
+              fontSize: 36,
+              lineHeight: 44,
+              color: colors.ink,
+              marginTop: 4,
+              letterSpacing: -0.4,
+            }}
+          >
+            Historique
+          </Text>
+          <Text
+            style={{
+              fontFamily: fonts.mono,
+              fontSize: 14,
+              color: colors.inkMuted,
+              marginBottom: 6,
+            }}
+          >
+            {total} {total > 1 ? 'trajets' : 'trajet'}
+          </Text>
         </View>
 
-        <View style={styles.statsRow}>
-          <View style={styles.statBadge}>
-            <Text variant="bodySmall" style={styles.statBadgeLabel}>Total</Text>
-            <Text variant="titleMedium" style={styles.statBadgeValue}>{total}</Text>
-          </View>
+        {/* Filter pills */}
+        <View
+          style={{
+            flexDirection: 'row',
+            gap: 6,
+            marginTop: spacing.lg,
+          }}
+        >
+          {FILTERS.map((f) => {
+            const active = filter === f.value;
+            return (
+              <Pressable
+                key={f.value}
+                onPress={() => setFilter(f.value)}
+                style={{
+                  paddingHorizontal: spacing.md,
+                  paddingVertical: 6,
+                  borderRadius: borderRadius.round,
+                  backgroundColor: active
+                    ? colors.ink
+                    : colors.surfaceElevated,
+                  borderWidth: StyleSheet.hairlineWidth,
+                  borderColor: active ? colors.ink : colors.hairlineStrong,
+                }}
+              >
+                <Text
+                  style={{
+                    fontFamily: fonts.bodyMedium,
+                    fontSize: 12,
+                    letterSpacing: 0.4,
+                    color: active ? colors.inkInverse : colors.ink,
+                  }}
+                >
+                  {f.label}
+                </Text>
+              </Pressable>
+            );
+          })}
         </View>
       </View>
 
-      {shifts.length === 0 && !isLoading ? (
-        renderEmpty()
+      {/* Body */}
+      {isFirstLoad && shifts.length === 0 ? (
+        <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.md }}>
+          <SkeletonStack rows={4} rowHeight={90} gap={12} />
+        </View>
+      ) : shifts.length === 0 ? (
+        <EmptyState
+          illustration
+          title="Aucun trajet"
+          message={
+            filter === 'all'
+              ? "Démarrez votre premier trajet pour voir l'historique apparaître ici."
+              : `Aucun trajet ${filter === 'completed' ? 'terminé' : 'actif'} pour le moment.`
+          }
+        />
       ) : (
         <FlatList
           data={shifts}
           renderItem={renderShift}
           keyExtractor={(item) => String(item.id)}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={{
+            paddingHorizontal: spacing.lg,
+            paddingBottom: spacing.xxl,
+            gap: spacing.sm,
+          }}
           onEndReached={handleLoadMore}
           onEndReachedThreshold={0.5}
           refreshing={refreshing}
           onRefresh={handleRefresh}
-          ListFooterComponent={
-            isLoading && shifts.length > 0 ? (
-              <ActivityIndicator size="small" color={colors.primary} style={styles.loader} />
-            ) : null
-          }
+          showsVerticalScrollIndicator={false}
         />
       )}
     </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  header: {
-    backgroundColor: colors.white,
-    paddingBottom: spacing.md,
-    paddingTop: spacing.sm,
-  },
-  title: {
-    fontWeight: 'bold',
-    paddingHorizontal: spacing.md,
-    paddingTop: spacing.md,
-    paddingBottom: spacing.sm,
-  },
-  filterContainer: {
-    paddingHorizontal: spacing.md,
-    marginBottom: spacing.md,
-  },
-  filterButtons: {
-    height: 36,
-  },
-  statsRow: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-    paddingHorizontal: spacing.md,
-    marginBottom: spacing.sm,
-  },
-  statBadge: {
-    backgroundColor: colors.primaryLight,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: 16,
-    alignItems: 'center',
-  },
-  statBadgeLabel: {
-    color: colors.primaryDark,
-    fontWeight: '500',
-  },
-  statBadgeValue: {
-    color: colors.primary,
-    fontWeight: 'bold',
-  },
-  listContent: {
-    padding: spacing.md,
-    paddingBottom: spacing.xl,
-    flexGrow: 1,
-  },
-  loader: {
-    marginVertical: spacing.lg,
-  },
-});

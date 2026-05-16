@@ -1,14 +1,42 @@
 import React from 'react';
-import { View, StyleSheet, ScrollView, Linking, Alert } from 'react-native';
-import { Text, Button, Card, Divider, List } from 'react-native-paper';
-import { colors, spacing, borderRadius } from '@/utils/theme';
+import {
+  Alert,
+  Linking,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import {
+  ChevronRight,
+  Download,
+  FileText,
+  ShieldCheck,
+  LogOut,
+  Sun,
+  Moon,
+  Smartphone,
+  Info,
+  User,
+} from 'lucide-react-native';
+import FadeSlideIn from '@/components/ui/FadeSlideIn';
+
+import Screen from '@/components/layout/Screen';
+import Card from '@/components/ui/Card';
+import Button from '@/components/ui/Button';
+import { useToast } from '@/components/ui/Toast';
 import { useAuthStore } from '@/store';
-import { getFatigueLabel } from '@/utils/formatters';
+import {
+  useTheme,
+  ColorSchemePreference,
+} from '@/contexts/ThemeContext';
 
 const APP_VERSION = '1.0.0';
 
 export default function SettingsScreen() {
+  const { colors, fonts, spacing, typeScale, borderRadius } = useTheme();
   const { driver, clearDriver } = useAuthStore();
+  const toast = useToast();
 
   const handleLogout = () => {
     Alert.alert(
@@ -19,177 +47,381 @@ export default function SettingsScreen() {
         {
           text: 'Se déconnecter',
           style: 'destructive',
-          onPress: () => {
-            clearDriver();
-          },
+          onPress: () => clearDriver(),
         },
       ]
     );
   };
 
   const handleExportData = () => {
-    Alert.alert(
-      'Export des données',
-      "Cette fonctionnalité sera disponible prochainement. Vous pourrez exporter l'historique de vos trajets et données de fatigue.",
-      [{ text: 'OK' }]
+    toast.info(
+      "L'export d'historique arrive dans une prochaine version.",
+      'Bientôt disponible'
     );
   };
 
-  const handlePrivacyPolicy = () => {
-    // Open privacy policy URL
-    Linking.openURL('https://drivewise.example.com/privacy').catch(() => {
-      Alert.alert('Information', 'Politique de confidentialité non disponible');
-    });
-  };
-
-  const handleTermsOfService = () => {
-    // Open terms of service URL
-    Linking.openURL('https://drivewise.example.com/terms').catch(() => {
-      Alert.alert('Information', "Conditions d'utilisation non disponibles");
-    });
+  const openLink = async (url: string, fallback: string) => {
+    try {
+      await Linking.openURL(url);
+    } catch {
+      toast.warning(fallback);
+    }
   };
 
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.header}>
-        <Text variant="headlineMedium">Paramètres</Text>
-      </View>
+    <Screen
+      scrollable
+      edges={{ top: true, bottom: true }}
+      contentContainerStyle={{
+        paddingHorizontal: spacing.lg,
+        paddingTop: spacing.lg,
+        paddingBottom: spacing.xxl,
+        gap: spacing.xl,
+      }}
+    >
+      {/* Title */}
+      <FadeSlideIn duration={360}>
+        <Text style={{ ...typeScale.caption, color: colors.inkMuted }}>
+          Vos préférences
+        </Text>
+        <Text
+          style={{
+            fontFamily: fonts.displayItalic,
+            fontSize: 36,
+            lineHeight: 44,
+            color: colors.ink,
+            marginTop: 4,
+            letterSpacing: -0.4,
+          }}
+        >
+          Paramètres
+        </Text>
+      </FadeSlideIn>
 
-      {/* Profile Section */}
+      {/* Profile */}
       {driver && (
-        <Card style={styles.card} mode="elevated">
-          <Card.Content>
-            <Text variant="titleMedium" style={styles.sectionTitle}>
-              Profil
-            </Text>
-            <List.Item
-              title={driver.username}
-              description={driver.email}
-              left={(props) => <List.Icon {...props} icon="account" />}
-            />
-          </Card.Content>
-        </Card>
+        <Section title="Profil">
+          <SettingsRow
+            icon={<User size={18} color={colors.inkMuted} />}
+            title={driver.username}
+            subtitle={driver.email}
+          />
+        </Section>
       )}
 
-      {/* App Info */}
-      <Card style={styles.card} mode="elevated">
-        <Card.Content>
-          <Text variant="titleMedium" style={styles.sectionTitle}>
-            Application
-          </Text>
-          <List.Item
-            title="Version"
-            description={`v${APP_VERSION}`}
-            left={(props) => <List.Icon {...props} icon="information" />}
-          />
-        </Card.Content>
-      </Card>
+      {/* Appearance toggle */}
+      <Section title="Apparence">
+        <AppearancePicker />
+      </Section>
+
+      {/* App info */}
+      <Section title="Application">
+        <SettingsRow
+          icon={<Info size={18} color={colors.inkMuted} />}
+          title="Version"
+          subtitle={`v${APP_VERSION}`}
+        />
+      </Section>
 
       {/* Data & Privacy */}
-      <Card style={styles.card} mode="elevated">
-        <Card.Content>
-          <Text variant="titleMedium" style={styles.sectionTitle}>
-            Données et confidentialité
-          </Text>
-          <List.Item
-            title="Exporter mes données"
-            description="Télécharger l'historique des trajets"
-            left={(props) => <List.Icon {...props} icon="download" />}
-            onPress={handleExportData}
-          />
-          <Divider />
-          <List.Item
-            title="Politique de confidentialité"
-            left={(props) => <List.Icon {...props} icon="shield-account" />}
-            onPress={handlePrivacyPolicy}
-          />
-          <Divider />
-          <List.Item
-            title="Conditions d'utilisation"
-            left={(props) => <List.Icon {...props} icon="file-document" />}
-            onPress={handleTermsOfService}
-          />
-        </Card.Content>
-      </Card>
+      <Section title="Données et confidentialité">
+        <SettingsRow
+          icon={<Download size={18} color={colors.inkMuted} />}
+          title="Exporter mes données"
+          subtitle="Télécharger l'historique"
+          onPress={handleExportData}
+          showChevron
+        />
+        <Divider />
+        <SettingsRow
+          icon={<ShieldCheck size={18} color={colors.inkMuted} />}
+          title="Politique de confidentialité"
+          onPress={() =>
+            openLink(
+              'https://drivewise.example.com/privacy',
+              'Politique non disponible'
+            )
+          }
+          showChevron
+        />
+        <Divider />
+        <SettingsRow
+          icon={<FileText size={18} color={colors.inkMuted} />}
+          title="Conditions d'utilisation"
+          onPress={() =>
+            openLink(
+              'https://drivewise.example.com/terms',
+              'Conditions non disponibles'
+            )
+          }
+          showChevron
+        />
+      </Section>
 
-      {/* Fatigue Level Reference */}
-      <Card style={styles.card} mode="elevated">
-        <Card.Content>
-          <Text variant="titleMedium" style={styles.sectionTitle}>
-            Niveaux de fatigue
-          </Text>
-          <View style={styles.fatigueLegend}>
-            <View style={styles.legendItem}>
-              <View style={[styles.legendDot, { backgroundColor: colors.fatigueLow }]} />
-              <Text variant="bodySmall">Faible (&lt; 30%)</Text>
-            </View>
-            <View style={styles.legendItem}>
-              <View style={[styles.legendDot, { backgroundColor: colors.fatigueModerate }]} />
-              <Text variant="bodySmall">Modéré (30-60%)</Text>
-            </View>
-            <View style={styles.legendItem}>
-              <View style={[styles.legendDot, { backgroundColor: colors.fatigueHigh }]} />
-              <Text variant="bodySmall">Élevé (60-80%)</Text>
-            </View>
-            <View style={styles.legendItem}>
-              <View style={[styles.legendDot, { backgroundColor: colors.fatigueCritical }]} />
-              <Text variant="bodySmall">Critique (&gt; 80%)</Text>
-            </View>
-          </View>
-        </Card.Content>
-      </Card>
+      {/* Fatigue legend */}
+      <Section title="Niveaux de fatigue">
+        <FatigueLegendRow
+          color={colors.fatigueRest}
+          label="Faible"
+          range="< 30%"
+        />
+        <FatigueLegendRow
+          color={colors.fatigueWatch}
+          label="Modéré"
+          range="30–60%"
+        />
+        <FatigueLegendRow
+          color={colors.fatigueAlert}
+          label="Élevé"
+          range="60–80%"
+        />
+        <FatigueLegendRow
+          color={colors.fatigueStop}
+          label="Critique"
+          range="> 80%"
+        />
+      </Section>
 
       {/* Logout */}
-      <Button
-        mode="contained"
-        onPress={handleLogout}
-        style={styles.logoutButton}
-        buttonColor={colors.error}
-      >
-        Se déconnecter
-      </Button>
-
-      <View style={styles.footer} />
-    </ScrollView>
+      <View style={{ marginTop: spacing.md }}>
+        <Button
+          variant="ghost"
+          size="lg"
+          fullWidth
+          onPress={handleLogout}
+          icon={<LogOut size={16} color={colors.ink} />}
+        >
+          Se déconnecter
+        </Button>
+      </View>
+    </Screen>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  header: {
-    padding: spacing.lg,
-    backgroundColor: colors.white,
-  },
-  card: {
-    margin: spacing.md,
-    borderRadius: borderRadius.lg,
-  },
-  sectionTitle: {
-    fontWeight: '600',
-    marginBottom: spacing.sm,
-    color: colors.darkGray,
-  },
-  fatigueLegend: {
-    gap: spacing.sm,
-    paddingTop: spacing.sm,
-  },
-  legendItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  legendDot: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-  },
-  logoutButton: {
-    margin: spacing.md,
-  },
-  footer: {
-    height: spacing.xl,
-  },
-});
+// ---- Section wrapper ---------------------------------------------------
+function Section({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  const { colors, spacing, typeScale } = useTheme();
+  return (
+    <View>
+      <Text
+        style={{
+          ...typeScale.caption,
+          color: colors.inkMuted,
+          marginBottom: spacing.sm,
+        }}
+      >
+        {title}
+      </Text>
+      <Card noPadding>
+        <View style={{ paddingVertical: spacing.xs }}>{children}</View>
+      </Card>
+    </View>
+  );
+}
+
+function Divider() {
+  const { colors, spacing } = useTheme();
+  return (
+    <View
+      style={{
+        height: StyleSheet.hairlineWidth,
+        backgroundColor: colors.hairline,
+        marginHorizontal: spacing.md,
+      }}
+    />
+  );
+}
+
+// ---- Settings row ------------------------------------------------------
+function SettingsRow({
+  icon,
+  title,
+  subtitle,
+  onPress,
+  showChevron,
+}: {
+  icon?: React.ReactNode;
+  title: string;
+  subtitle?: string;
+  onPress?: () => void;
+  showChevron?: boolean;
+}) {
+  const { colors, fonts, spacing, typeScale } = useTheme();
+
+  const rowContent = (
+    <>
+      {icon && (
+        <View style={{ width: 28, alignItems: 'center', marginRight: spacing.sm }}>
+          {icon}
+        </View>
+      )}
+      <View style={{ flex: 1 }}>
+        <Text style={{ ...typeScale.bodyMd, color: colors.ink, fontFamily: fonts.bodyMedium }}>
+          {title}
+        </Text>
+        {subtitle && (
+          <Text style={{ ...typeScale.bodySm, color: colors.inkMuted, marginTop: 2 }}>
+            {subtitle}
+          </Text>
+        )}
+      </View>
+      {showChevron && (
+        <ChevronRight size={16} color={colors.inkSubtle} strokeWidth={2} />
+      )}
+    </>
+  );
+
+  const baseStyle = {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
+  };
+
+  if (onPress) {
+    return (
+      <Pressable
+        onPress={onPress}
+        style={({ pressed }) => ({ ...baseStyle, opacity: pressed ? 0.6 : 1 })}
+      >
+        {rowContent}
+      </Pressable>
+    );
+  }
+
+  return <View style={baseStyle}>{rowContent}</View>;
+}
+
+// ---- Fatigue legend row ------------------------------------------------
+function FatigueLegendRow({
+  color,
+  label,
+  range,
+}: {
+  color: string;
+  label: string;
+  range: string;
+}) {
+  const { colors, fonts, spacing, typeScale } = useTheme();
+  return (
+    <View
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: spacing.sm,
+        paddingHorizontal: spacing.md,
+      }}
+    >
+      <View
+        style={{
+          width: 10,
+          height: 10,
+          borderRadius: 5,
+          backgroundColor: color,
+          marginRight: spacing.md,
+        }}
+      />
+      <Text
+        style={{
+          ...typeScale.bodyMd,
+          color: colors.ink,
+          fontFamily: fonts.bodyMedium,
+          flex: 1,
+        }}
+      >
+        {label}
+      </Text>
+      <Text
+        style={{
+          ...typeScale.bodySm,
+          color: colors.inkMuted,
+          fontFamily: fonts.monoRegular,
+        }}
+      >
+        {range}
+      </Text>
+    </View>
+  );
+}
+
+// ---- Appearance picker (system / light / dark) ------------------------
+function AppearancePicker() {
+  const { colors, fonts, spacing, typeScale, borderRadius, preference, setPreference } =
+    useTheme();
+
+  const options: {
+    value: ColorSchemePreference;
+    label: string;
+    icon: React.ReactNode;
+  }[] = [
+    {
+      value: 'system',
+      label: 'Système',
+      icon: <Smartphone size={16} strokeWidth={2} color={colors.inkMuted} />,
+    },
+    {
+      value: 'light',
+      label: 'Clair',
+      icon: <Sun size={16} strokeWidth={2} color={colors.inkMuted} />,
+    },
+    {
+      value: 'dark',
+      label: 'Sombre',
+      icon: <Moon size={16} strokeWidth={2} color={colors.inkMuted} />,
+    },
+  ];
+
+  return (
+    <View
+      style={{
+        flexDirection: 'row',
+        margin: spacing.md,
+        backgroundColor: colors.surfaceSunken,
+        borderRadius: borderRadius.md,
+        padding: 4,
+        gap: 4,
+      }}
+    >
+      {options.map((opt) => {
+        const isActive = preference === opt.value;
+        return (
+          <Pressable
+            key={opt.value}
+            onPress={() => setPreference(opt.value)}
+            style={{
+              flex: 1,
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 6,
+              paddingVertical: spacing.sm,
+              borderRadius: borderRadius.sm,
+              backgroundColor: isActive
+                ? colors.surfaceElevated
+                : 'transparent',
+            }}
+          >
+            {React.cloneElement(opt.icon as React.ReactElement, {
+              color: isActive ? colors.ink : colors.inkMuted,
+            } as any)}
+            <Text
+              style={{
+                ...typeScale.bodySm,
+                color: isActive ? colors.ink : colors.inkMuted,
+                fontFamily: isActive ? fonts.bodySemibold : fonts.bodyMedium,
+              }}
+            >
+              {opt.label}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}

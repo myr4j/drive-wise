@@ -6,19 +6,18 @@ import { Platform } from 'react-native';
 // For Android emulator, use 10.0.2.2 to access localhost
 // For iOS simulator, use localhost
 const getApiUrl = () => {
-  // Try to get from expo-constants (app.json extra)
-  const extraApiUrl = Constants.expoConfig?.extra?.apiUrl;
-  if (extraApiUrl) {
-    return extraApiUrl;
+  // Derive API URL from Metro bundler host — works on any network automatically
+  const hostUri = Constants.expoConfig?.hostUri;
+  if (hostUri) {
+    const host = hostUri.split(':')[0];
+    return `http://${host}:8000`;
   }
 
-  // Default development URLs
+  // Android emulator fallback
   if (Platform.OS === 'android') {
-    // Android emulator: use 10.0.2.2 to access localhost
     return 'http://10.0.2.2:8000';
   }
-  
-  // iOS simulator and web: use localhost
+
   return 'http://localhost:8000';
 };
 

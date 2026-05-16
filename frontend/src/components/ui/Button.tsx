@@ -1,89 +1,200 @@
-import React from 'react';
-import { StyleSheet, ActivityIndicator } from 'react-native';
-import { Button as PaperButton, ButtonProps as PaperButtonProps } from 'react-native-paper';
+import React, { useMemo, useRef } from 'react';
+import {
+  ActivityIndicator,
+  Animated,
+  Pressable,
+  PressableProps,
+  StyleSheet,
+  Text,
+  View,
+  ViewStyle,
+} from 'react-native';
+import * as Haptics from 'expo-haptics';
 
-import { colors, spacing, borderRadius } from '@/utils/theme';
+import { useTheme } from '@/contexts/ThemeContext';
 
-interface ButtonProps extends Omit<PaperButtonProps, 'mode' | 'textColor'> {
-  variant?: 'contained' | 'outlined' | 'text' | 'tonal';
-  size?: 'small' | 'medium' | 'large';
-  fullWidth?: boolean;
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
+export type ButtonVariant = 'primary' | 'ghost' | 'subtle' | 'destructive';
+export type ButtonSize = 'sm' | 'md' | 'lg';
+export type LegacyButtonMode = 'contained' | 'outlined' | 'text' | 'tonal';
+
+type ButtonProps = Omit<PressableProps, 'children' | 'style'> & {
+  children?: React.ReactNode;
+  variant?: ButtonVariant;
+  size?: ButtonSize;
+  /** Legacy Paper-style API — automatically mapped onto variant */
+  mode?: LegacyButtonMode;
   loading?: boolean;
-}
+  fullWidth?: boolean;
+  icon?: React.ReactNode;
+  iconPosition?: 'left' | 'right';
+  haptic?: boolean;
+  style?: ViewStyle | ViewStyle[];
+};
+
+const variantFromMode: Record<LegacyButtonMode, ButtonVariant> = {
+  contained: 'primary',
+  outlined: 'ghost',
+  text: 'ghost',
+  tonal: 'subtle',
+};
+
+const sizeTokens = {
+  sm: { paddingV: 8, paddingH: 14, fontSize: 13, lineHeight: 18, minHeight: 36, gap: 6 },
+  md: { paddingV: 12, paddingH: 20, fontSize: 15, lineHeight: 22, minHeight: 44, gap: 8 },
+  lg: { paddingV: 16, paddingH: 28, fontSize: 16, lineHeight: 24, minHeight: 56, gap: 10 },
+} as const;
 
 export default function Button({
-  variant = 'contained',
-  size = 'medium',
-  fullWidth = false,
+  children,
+  variant,
+  size = 'md',
+  mode,
   loading = false,
   disabled = false,
-  children,
+  fullWidth = false,
+  icon,
+  iconPosition = 'left',
+  haptic = true,
   style,
-  ...props
+  onPress,
+  onPressIn,
+  onPressOut,
+  ...rest
 }: ButtonProps) {
-  const mode = variant === 'contained' ? 'contained' : variant === 'outlined' ? 'outlined' : 'text';
-  
-  const buttonStyles = [
-    styles.button,
-    styles[`${variant}Button`],
-    styles[`${size}Button`],
-    fullWidth && styles.fullWidth,
-    disabled && styles.disabledButton,
-    style,
-  ];
+  const { colors, fonts, borderRadius } = useTheme();
+  const resolvedVariant: ButtonVariant =
+    variant ?? (mode ? variantFromMode[mode] : 'primary');
+  const tokens = sizeTokens[size];
+  const isInteractive = !disabled && !loading;
+
+  const scale = useRef(new Animated.Value(1)).current;
+
+  const palette = useMemo(() => {
+    switch (resolvedVariant) {
+      case 'primary':
+        return {
+          bg: isInteractive ? colors.accent : colors.surfaceSunken,
+          text: isInteractive ? colors.onAccent : colors.inkSubtle,
+          border: 'transparent',
+        };
+      case 'subtle':
+        return {
+          bg: colors.accentMuted,
+          text: isInteractive ? colors.accent : colors.inkSubtle,
+          border: 'transparent',
+        };
+      case 'ghost':
+        return {
+          bg: 'transparent',
+          text: isInteractive ? colors.ink : colors.inkSubtle,
+          border: colors.hairlineStrong,
+        };
+      case 'destructive':
+        return {
+          bg: isInteractive ? colors.error : colors.surfaceSunken,
+          text: isInteractive ? colors.onAccent : colors.inkSubtle,
+          border: 'transparent',
+        };
+    }
+  }, [resolvedVariant, isInteractive, colors]);
+
+  const handlePressIn = (e: any) => {
+    Animated.spring(scale, {
+      toValue: 0.96,
+      stiffness: 320,
+      damping: 14,
+      mass: 1,
+      useNativeDriver: true,
+    }).start();
+    onPressIn?.(e);
+  };
+  const handlePressOut = (e: any) => {
+    Animated.spring(scale, {
+      toValue: 1,
+      stiffness: 260,
+      damping: 18,
+      mass: 1,
+      useNativeDriver: true,
+    }).start();
+    onPressOut?.(e);
+  };
+  const handlePress = (e: any) => {
+    if (haptic) {
+      Haptics.selectionAsync().catch(() => {});
+    }
+    onPress?.(e);
+  };
 
   return (
-    <PaperButton
-      mode={mode}
-      disabled={disabled || loading}
-      loading={loading}
-      style={buttonStyles}
-      contentStyle={styles.content}
-      textColor={variant === 'contained' && !disabled ? colors.white : undefined}
-      {...props}
+    <AnimatedPressable
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
+      onPress={isInteractive ? handlePress : undefined}
+      disabled={!isInteractive}
+      accessibilityRole="button"
+      accessibilityState={{ disabled: !isInteractive, busy: loading }}
+      style={[
+        styles.base,
+        {
+          backgroundColor: palette.bg,
+          borderColor: palette.border,
+          borderWidth: resolvedVariant === 'ghost' ? StyleSheet.hairlineWidth : 0,
+          paddingVertical: tokens.paddingV,
+          paddingHorizontal: tokens.paddingH,
+          minHeight: tokens.minHeight,
+          borderRadius: borderRadius.md,
+          opacity: disabled ? 0.55 : 1,
+          transform: [{ scale }],
+        },
+        fullWidth && styles.fullWidth,
+        style,
+      ]}
+      {...rest}
     >
-      {children}
-    </PaperButton>
+      <View style={[styles.inner, { gap: tokens.gap }]}>
+        {loading ? (
+          <ActivityIndicator size="small" color={palette.text} />
+        ) : (
+          <>
+            {icon && iconPosition === 'left' && icon}
+            {children !== undefined && children !== null && (
+              <Text
+                style={{
+                  color: palette.text,
+                  fontFamily: fonts.bodySemibold,
+                  fontSize: tokens.fontSize,
+                  lineHeight: tokens.lineHeight,
+                  letterSpacing: 0.2,
+                  textAlign: 'center',
+                }}
+                numberOfLines={1}
+              >
+                {children}
+              </Text>
+            )}
+            {icon && iconPosition === 'right' && icon}
+          </>
+        )}
+      </View>
+    </AnimatedPressable>
   );
 }
 
 const styles = StyleSheet.create({
-  button: {
-    borderRadius: borderRadius.md,
-    fontWeight: '600',
+  base: {
+    alignSelf: 'flex-start',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  containedButton: {
-    backgroundColor: colors.primary,
-  },
-  outlinedButton: {
-    borderColor: colors.primary,
-  },
-  textButton: {
-    backgroundColor: 'transparent',
-  },
-  tonalButton: {
-    backgroundColor: colors.primaryLight,
-  },
-  smallButton: {
-    paddingVertical: spacing.xs / 2,
-    paddingHorizontal: spacing.sm,
-  },
-  mediumButton: {
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-  },
-  largeButton: {
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.lg,
+  inner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   fullWidth: {
+    alignSelf: 'stretch',
     width: '100%',
-  },
-  disabledButton: {
-    backgroundColor: colors.gray,
-    borderColor: colors.gray,
-  },
-  content: {
-    paddingVertical: spacing.xs / 2,
   },
 });

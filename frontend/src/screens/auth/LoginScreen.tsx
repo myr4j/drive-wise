@@ -1,31 +1,39 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
-  View,
-  StyleSheet,
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   ScrollView,
-  TouchableOpacity,
-  Alert,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native';
-import { Text, TextInput, Button, ActivityIndicator } from 'react-native-paper';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import FadeSlideIn from '@/components/ui/FadeSlideIn';
 
 import { loginSchema, LoginFormData } from '@/utils/validators';
 import { authApi } from '@/services';
 import { useAuthStore } from '@/store';
-import { colors, spacing, borderRadius } from '@/utils/theme';
+import { useTheme } from '@/contexts/ThemeContext';
+import { useToast } from '@/components/ui/Toast';
+import Input from '@/components/ui/Input';
+import Button from '@/components/ui/Button';
 import { RootStackParamList } from '@/types/navigation';
 
-type LoginScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Login'>;
+type LoginScreenNavigationProp = NativeStackNavigationProp<
+  RootStackParamList,
+  'Login'
+>;
 
 export default function LoginScreen() {
+  const { colors, fonts, spacing, typeScale } = useTheme();
+  const toast = useToast();
   const navigation = useNavigation<LoginScreenNavigationProp>();
   const { setDriver, setLoading, setError } = useAuthStore();
-  const [isLoading, setIsLoading] = React.useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   const {
     control,
@@ -33,29 +41,19 @@ export default function LoginScreen() {
     formState: { errors },
   } = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
-    defaultValues: {
-      email: '',
-      password: '',
-    },
+    defaultValues: { email: '', password: '' },
   });
 
   const onSubmit = async (data: LoginFormData) => {
     setIsLoading(true);
     setLoading(true);
     setError(null);
-
     try {
       const response = await authApi.login(data);
       setDriver(response.driver);
-      // Navigation will be handled by the main App component watching auth state
-    } catch (error: any) {
-      const message = error?.message || 'Erreur de connexion';
-      console.error('Login error:', error);
-      Alert.alert(
-        'Échec de la connexion',
-        message,
-        [{ text: 'OK' }]
-      );
+    } catch (err: any) {
+      const message = err?.message || 'Erreur de connexion';
+      toast.error(message, 'Connexion impossible');
       setError(message);
     } finally {
       setIsLoading(false);
@@ -65,138 +63,137 @@ export default function LoginScreen() {
 
   return (
     <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: colors.surface }}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={styles.container}
     >
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={{
+          flexGrow: 1,
+          justifyContent: 'center',
+          paddingHorizontal: spacing.xl,
+          paddingVertical: spacing.xxxl,
+        }}
         keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
       >
-        <View style={styles.header}>
-          <Text variant="headlineMedium" style={styles.title}>
+        {/* Brand block — large editorial header */}
+        <FadeSlideIn duration={420} style={{ marginBottom: spacing.xxxl }}>
+          <View style={[styles.brandMark, { backgroundColor: colors.accent }]} />
+          <Text
+            style={{
+              ...typeScale.caption,
+              color: colors.inkMuted,
+              marginTop: spacing.md,
+            }}
+          >
             DriveWise
           </Text>
-          <Text variant="bodyMedium" style={styles.subtitle}>
-            Votre assistant de fatigue intelligent
+          <Text
+            style={{
+              fontFamily: fonts.displayItalic,
+              fontSize: 44,
+              lineHeight: 52,
+              color: colors.ink,
+              marginTop: spacing.xs,
+              letterSpacing: -0.5,
+            }}
+          >
+            Bon retour.
           </Text>
-        </View>
+          <Text
+            style={{
+              ...typeScale.bodyLg,
+              color: colors.inkMuted,
+              marginTop: spacing.sm,
+              maxWidth: 320,
+            }}
+          >
+            Connectez-vous pour reprendre le suivi de fatigue.
+          </Text>
+        </FadeSlideIn>
 
-        <View style={styles.form}>
+        {/* Form */}
+        <FadeSlideIn fromY={12} duration={420} delay={100}>
           <Controller
             control={control}
             name="email"
             render={({ field: { onChange, onBlur, value } }) => (
-              <TextInput
-                label="Email"
-                mode="outlined"
-                onBlur={onBlur}
-                onChangeText={onChange}
+              <Input
+                label="Adresse email"
                 value={value}
-                error={!!errors.email}
+                onChangeText={onChange}
+                onBlur={onBlur}
+                error={errors.email?.message}
                 keyboardType="email-address"
                 autoCapitalize="none"
-                style={styles.input}
-                outlineColor={colors.primaryLight}
-                activeOutlineColor={colors.primary}
               />
             )}
           />
-          {errors.email && (
-            <Text style={styles.errorText}>{errors.email.message}</Text>
-          )}
 
           <Controller
             control={control}
             name="password"
             render={({ field: { onChange, onBlur, value } }) => (
-              <TextInput
+              <Input
                 label="Mot de passe"
-                mode="outlined"
-                onBlur={onBlur}
-                onChangeText={onChange}
                 value={value}
-                error={!!errors.password}
+                onChangeText={onChange}
+                onBlur={onBlur}
+                error={errors.password?.message}
                 secureTextEntry
-                style={styles.input}
-                outlineColor={colors.primaryLight}
-                activeOutlineColor={colors.primary}
+                autoCapitalize="none"
               />
             )}
           />
-          {errors.password && (
-            <Text style={styles.errorText}>{errors.password.message}</Text>
-          )}
 
-          <Button
-            mode="contained"
-            onPress={handleSubmit(onSubmit)}
-            style={styles.button}
-            disabled={isLoading}
-            loading={isLoading}
-          >
-            {isLoading ? 'Connexion...' : 'Se connecter'}
-          </Button>
-
-          <View style={styles.registerContainer}>
-            <Text variant="bodyMedium">Pas encore de compte ?</Text>
-            <TouchableOpacity onPress={() => navigation.navigate('Register')}>
-              <Text variant="bodyMedium" style={styles.registerLink}>
-                S'inscrire
-              </Text>
-            </TouchableOpacity>
+          <View style={{ marginTop: spacing.xl }}>
+            <Button
+              variant="primary"
+              size="lg"
+              fullWidth
+              onPress={handleSubmit(onSubmit)}
+              loading={isLoading}
+            >
+              {isLoading ? 'Connexion en cours' : 'Se connecter'}
+            </Button>
           </View>
-        </View>
+
+          <View
+            style={{
+              flexDirection: 'row',
+              justifyContent: 'center',
+              alignItems: 'center',
+              marginTop: spacing.xxl,
+              gap: spacing.xs,
+            }}
+          >
+            <Text
+              style={{ ...typeScale.bodyMd, color: colors.inkMuted }}
+            >
+              Pas encore de compte ?
+            </Text>
+            <Pressable onPress={() => navigation.navigate('Register')}>
+              <Text
+                style={{
+                  ...typeScale.bodyMd,
+                  color: colors.accent,
+                  fontFamily: fonts.bodySemibold,
+                }}
+              >
+                Créer un compte
+              </Text>
+            </Pressable>
+          </View>
+        </FadeSlideIn>
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    padding: spacing.lg,
-  },
-  header: {
-    alignItems: 'center',
-    marginBottom: spacing.xl,
-  },
-  title: {
-    fontWeight: 'bold',
-    color: colors.primary,
-    marginBottom: spacing.sm,
-  },
-  subtitle: {
-    color: colors.darkGray,
-  },
-  form: {
-    gap: spacing.md,
-  },
-  input: {
-    backgroundColor: colors.white,
-  },
-  button: {
-    marginTop: spacing.sm,
-    paddingVertical: spacing.sm,
-  },
-  registerContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: spacing.lg,
-    gap: spacing.sm,
-  },
-  registerLink: {
-    color: colors.primary,
-    fontWeight: '600',
-  },
-  errorText: {
-    color: colors.error,
-    fontSize: 12,
-    marginTop: spacing.xs,
+  brandMark: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
   },
 });

@@ -1,13 +1,14 @@
 import React from 'react';
-import { View, StyleSheet } from 'react-native';
-import { Text, Card } from 'react-native-paper';
+import { StyleSheet, Text, View } from 'react-native';
 
-import { colors, spacing, borderRadius, shadows } from '@/utils/theme';
+import { useTheme } from '@/contexts/ThemeContext';
 
 interface StatCardProps {
   title: string;
   value: string | number;
-  icon?: string;
+  /**
+   * Semantic accent color for the value. Maps to a palette token.
+   */
   color?: 'primary' | 'success' | 'warning' | 'error' | 'info';
   trend?: 'up' | 'down' | 'neutral';
   trendValue?: string;
@@ -16,110 +17,101 @@ interface StatCardProps {
 export default function StatCard({
   title,
   value,
-  icon,
   color = 'primary',
   trend,
   trendValue,
 }: StatCardProps) {
-  const colorMap = {
-    primary: { bg: colors.primaryLight, text: colors.primaryDark },
-    success: { bg: colors.fatigueLow, text: '#2E7D32' },
-    warning: { bg: colors.fatigueModerate, text: '#F57F17' },
-    error: { bg: '#FFCDD2', text: colors.error },
-    info: { bg: '#B3E5FC', text: '#0277BD' },
-  };
+  const { colors, fonts, spacing, typeScale, borderRadius } = useTheme();
 
-  const theme = colorMap[color];
+  const accent =
+    color === 'success'
+      ? colors.fatigueRest
+      : color === 'warning'
+      ? colors.fatigueWatch
+      : color === 'error'
+      ? colors.error
+      : color === 'info'
+      ? colors.info
+      : colors.accent;
+
+  const trendAccent =
+    trend === 'up'
+      ? colors.fatigueRest
+      : trend === 'down'
+      ? colors.error
+      : colors.inkMuted;
 
   return (
-    <Card style={[styles.card, shadows.sm]} mode="elevated">
-      <Card.Content style={styles.content}>
-        <View style={styles.header}>
-          <Text variant="bodySmall" style={styles.title}>
-            {title}
-          </Text>
-          {trend && trendValue && (
-            <View style={[styles.trendBadge, styles[`${trend}Badge`]]}>
-              <Text
-                variant="labelSmall"
-                style={[styles.trendText, styles[`${trend}Text`]]}
-              >
-                {trend === 'up' ? '↑' : trend === 'down' ? '↓' : '→'} {trendValue}
-              </Text>
-            </View>
-          )}
-        </View>
-        <View style={styles.valueContainer}>
-          <Text variant="displaySmall" style={[styles.value, { color: theme.text }]}>
-            {value}
-          </Text>
-        </View>
-        <View style={[styles.indicator, { backgroundColor: theme.bg }]} />
-      </Card.Content>
-    </Card>
+    <View
+      style={{
+        flex: 1,
+        minHeight: 110,
+        backgroundColor: colors.surfaceElevated,
+        borderRadius: borderRadius.lg,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: colors.hairline,
+        padding: spacing.md,
+        justifyContent: 'space-between',
+      }}
+    >
+      <View
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+        }}
+      >
+        <Text style={{ ...typeScale.caption, color: colors.inkMuted }}>
+          {title}
+        </Text>
+        {trend && trendValue && (
+          <View
+            style={{
+              paddingHorizontal: 6,
+              paddingVertical: 2,
+              borderRadius: borderRadius.sm,
+              borderWidth: StyleSheet.hairlineWidth,
+              borderColor: trendAccent,
+            }}
+          >
+            <Text
+              style={{
+                fontFamily: fonts.mono,
+                fontSize: 10,
+                color: trendAccent,
+              }}
+            >
+              {trend === 'up' ? '↑' : trend === 'down' ? '↓' : '→'}{' '}
+              {trendValue}
+            </Text>
+          </View>
+        )}
+      </View>
+
+      <Text
+        style={{
+          fontFamily: fonts.display,
+          fontSize: 30,
+          lineHeight: 36,
+          color: accent,
+          marginTop: spacing.md,
+          letterSpacing: -0.4,
+        }}
+        numberOfLines={1}
+      >
+        {value}
+      </Text>
+
+      <View
+        style={{
+          height: 2,
+          width: 24,
+          backgroundColor: accent,
+          marginTop: spacing.sm,
+          opacity: 0.6,
+          borderRadius: 1,
+        }}
+      />
+    </View>
   );
 }
-
-const styles = StyleSheet.create({
-  card: {
-    borderRadius: borderRadius.lg,
-    flex: 1,
-    minHeight: 120,
-  },
-  content: {
-    padding: spacing.md,
-    justifyContent: 'space-between',
-    flex: 1,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.sm,
-  },
-  title: {
-    color: colors.gray,
-    fontWeight: '500',
-  },
-  valueContainer: {
-    flex: 1,
-    justifyContent: 'center',
-  },
-  value: {
-    fontWeight: 'bold',
-  },
-  indicator: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 4,
-  },
-  trendBadge: {
-    paddingHorizontal: spacing.xs,
-    paddingVertical: 2,
-    borderRadius: borderRadius.sm,
-  },
-  upBadge: {
-    backgroundColor: colors.success + '20',
-  },
-  downBadge: {
-    backgroundColor: colors.error + '20',
-  },
-  neutralBadge: {
-    backgroundColor: colors.gray + '20',
-  },
-  trendText: {
-    fontWeight: '600',
-    fontSize: 10,
-  },
-  upText: {
-    color: colors.success,
-  },
-  downText: {
-    color: colors.error,
-  },
-  neutralText: {
-    color: colors.gray,
-  },
-});

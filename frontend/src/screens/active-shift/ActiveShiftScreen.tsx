@@ -1,272 +1,285 @@
-import React from 'react';
-import { View, StyleSheet, Alert, Linking } from 'react-native';
-import { Text, Button, Card } from 'react-native-paper';
-import { useFocusEffect } from '@react-navigation/native';
+import React, { useCallback, useEffect, useState } from 'react';
+import { Alert, StyleSheet, Text, View } from 'react-native';
+import FadeSlideIn from '@/components/ui/FadeSlideIn';
+import { Quote, Radio } from 'lucide-react-native';
 
 import { useShiftStore, useFatigueStore } from '@/store';
 import { shiftsApi } from '@/services';
 import { useShift } from '@/hooks/useShift';
 import FatigueGauge from '@/components/fatigue/FatigueGauge';
 import Screen from '@/components/layout/Screen';
-import { colors, spacing, borderRadius } from '@/utils/theme';
-import {
-  getFatigueColor,
-  getFatigueLabel,
-  getFatigueMessage,
-  formatMinutes,
-  getMinutesDifference,
-} from '@/utils/formatters';
+import Button from '@/components/ui/Button';
+import Card from '@/components/ui/Card';
+import { useToast } from '@/components/ui/Toast';
+import { useTheme } from '@/contexts/ThemeContext';
+import { getMinutesDifference } from '@/utils/formatters';
+
+/**
+ * Format minutes as a session timer: 00:42 (under an hour) or 2:14 (with hours).
+ * Kept Geist-Mono friendly so the digits never visually jump.
+ */
+function formatSessionDuration(totalMinutes: number) {
+  if (totalMinutes < 60) {
+    return `${String(Math.max(0, totalMinutes)).padStart(2, '0')} min`;
+  }
+  const h = Math.floor(totalMinutes / 60);
+  const m = totalMinutes % 60;
+  return `${h}h ${String(m).padStart(2, '0')}`;
+}
 
 export default function ActiveShiftScreen() {
-  const { activeShift, clearActiveShift, shiftStatus, setShiftStatus } = useShiftStore();
+  const { colors, fonts, spacing, typeScale } = useTheme();
+  const toast = useToast();
+  const { activeShift, clearActiveShift } = useShiftStore();
   const {
     currentFatigueLevel,
     currentFatigueScore,
     suggestion,
-    updateFatigue,
     clearFatigueData,
   } = useFatigueStore();
 
-  // GPS tracking hook - sends snapshots every 30 seconds
   const {
     isTracking,
-    isSending,
     snapshotCount,
     lastSnapshotTime,
-    location,
     error: locationError,
-  } = useShift({
-    snapshotInterval: 30000, // 30 seconds
-    enableBackgroundTracking: true,
-  });
+  } = useShift({ snapshotInterval: 30000, enableBackgroundTracking: true });
 
-  const [timeSinceStart, setTimeSinceStart] = React.useState(0);
-  const [isEnding, setIsEnding] = React.useState(false);
+  const [timeSinceStart, setTimeSinceStart] = useState(0);
+  const [isEnding, setIsEnding] = useState(false);
 
-  // Update timer every second
-  React.useEffect(() => {
+  useEffect(() => {
     if (!activeShift) return;
-
+    setTimeSinceStart(getMinutesDifference(activeShift.started_at));
     const interval = setInterval(() => {
       setTimeSinceStart(getMinutesDifference(activeShift.started_at));
     }, 1000);
-
     return () => clearInterval(interval);
   }, [activeShift]);
 
-  const handleEndShift = async () => {
+  const endShift = useCallback(async () => {
     if (!activeShift) return;
+    setIsEnding(true);
+    try {
+      await shiftsApi.endShift(String(activeShift.shift_id));
+      toast.success('Trajet terminé', 'Reposez-vous bien.');
+      clearActiveShift();
+      clearFatigueData();
+    } catch (err) {
+      toast.error('Impossible de terminer le trajet', 'Vérifiez la connexion.');
+    } finally {
+      setIsEnding(false);
+    }
+  }, [activeShift, clearActiveShift, clearFatigueData, toast]);
 
+  const handleEndShift = useCallback(() => {
     Alert.alert(
-      'Terminer le trajet',
-      'Êtes-vous sûr de vouloir terminer ce trajet ?',
+      'Terminer la session ?',
+      'Le suivi de fatigue s\'arrête et le trajet est archivé.',
       [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Terminer',
-          style: 'destructive',
-          onPress: async () => {
-            setIsEnding(true);
-            try {
-              const result = await shiftsApi.endShift(String(activeShift.shift_id));
-              console.log('Shift ended:', result);
-              clearActiveShift();
-              clearFatigueData();
-            } catch (error) {
-              console.error('Error ending shift:', error);
-              Alert.alert('Erreur', "Impossible de terminer le trajet");
-            } finally {
-              setIsEnding(false);
-            }
-          },
-        },
+        { text: 'Continuer', style: 'cancel' },
+        { text: 'Terminer', style: 'destructive', onPress: endShift },
       ]
     );
-  };
-
-  const fatigueColor = getFatigueColor(currentFatigueLevel);
-  const fatigueScore = currentFatigueScore ?? 0;
+  }, [endShift]);
 
   return (
     <Screen
-      style={styles.container}
-      edges={{ top: false, bottom: true }}
-      scrollable={true}
-      contentContainerStyle={styles.screenContent}
+      scrollable
+      glow
+      edges={{ top: true, bottom: true }}
+      contentContainerStyle={{
+        flexGrow: 1,
+        paddingHorizontal: spacing.lg,
+        paddingTop: spacing.xl,
+        paddingBottom: spacing.xl,
+      }}
     >
-      <View style={styles.header}>
-        <View style={styles.headerContent}>
-          <Text variant="titleLarge" style={styles.title}>
-            Trajet en cours
-          </Text>
-          <Text variant="bodyLarge" style={styles.timer}>
-            {formatMinutes(timeSinceStart)}
-          </Text>
-        </View>
-      </View>
+      {/* --- Block 1 : session timer ---------------------------------- */}
+      <FadeSlideIn fromY={12} duration={420} style={{ alignItems: 'center', marginBottom: spacing.xxl }}>
+        <Text
+          style={{
+            ...typeScale.caption,
+            color: colors.inkMuted,
+          }}
+        >
+          Durée de session
+        </Text>
+        <Text
+          style={{
+            fontFamily: fonts.mono,
+            fontSize: 44,
+            lineHeight: 52,
+            color: colors.ink,
+            marginTop: spacing.xs,
+            letterSpacing: -1,
+          }}
+          accessibilityLabel={`Session en cours, ${formatSessionDuration(timeSinceStart)}`}
+        >
+          {formatSessionDuration(timeSinceStart)}
+        </Text>
+        <View
+          style={{
+            width: 40,
+            height: StyleSheet.hairlineWidth,
+            backgroundColor: colors.hairlineStrong,
+            marginTop: spacing.md,
+          }}
+        />
+      </FadeSlideIn>
 
-      {/* Fatigue Gauge */}
-      <FatigueGauge
-        fatigueLevel={currentFatigueLevel}
-        fatigueScore={currentFatigueScore}
-        size="large"
-        showLabel={true}
-        showMessage={true}
-      />
+      {/* --- Block 2 : the gauge -------------------------------------- */}
+      <FadeSlideIn fromY={0} fromScale={0.92} duration={520} delay={100} style={{ alignItems: 'center', marginBottom: spacing.xxl }}>
+        <FatigueGauge
+          fatigueLevel={currentFatigueLevel}
+          fatigueScore={currentFatigueScore}
+          size="large"
+          showLabel={false}
+          showMessage={true}
+        />
+      </FadeSlideIn>
 
-      {/* Suggestion Card */}
-      {suggestion && (
-        <Card style={[styles.suggestionCard]} mode="outlined">
-          <Card.Content>
-            <Text variant="titleMedium" style={styles.suggestionTitle}>
-              💡 Suggestion
-            </Text>
-            <Text variant="bodyMedium">{suggestion.message}</Text>
-          </Card.Content>
-        </Card>
-      )}
-
-      {/* Stats */}
-      <View style={styles.statsContainer}>
-        <View style={styles.statRow}>
-          <View style={styles.statItem}>
-            <Text variant="bodySmall" style={styles.statLabel}>
-              Snapshots
-            </Text>
-            <Text variant="titleMedium">
-              {snapshotCount}
-            </Text>
-          </View>
-          <View style={styles.statItem}>
-            <Text variant="bodySmall" style={styles.statLabel}>
-              GPS
-            </Text>
-            <View style={styles.statusRow}>
-              <View
-                style={[
-                  styles.statusDot,
-                  { backgroundColor: isTracking ? colors.success : colors.gray },
-                ]}
+      {/* --- Block 3 : suggestion ------------------------------------- */}
+      {suggestion ? (
+        <FadeSlideIn fromY={12} duration={420} delay={220} style={{ marginBottom: spacing.xl }}>
+          <Card variant="accent" style={{ paddingVertical: spacing.lg }}>
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'flex-start',
+                gap: spacing.sm,
+              }}
+            >
+              <Quote
+                size={18}
+                color={colors.accent}
+                strokeWidth={2}
+                style={{ marginTop: 4 }}
               />
-              <Text variant="bodyMedium">
-                {isTracking ? 'Actif' : 'Inactif'}
-              </Text>
+              <View style={{ flex: 1 }}>
+                <Text
+                  style={{
+                    fontFamily: fonts.displayItalic,
+                    fontSize: 18,
+                    lineHeight: 26,
+                    color: colors.ink,
+                  }}
+                >
+                  {suggestion.message}
+                </Text>
+                <Text
+                  style={{
+                    ...typeScale.caption,
+                    color: colors.inkMuted,
+                    marginTop: spacing.sm,
+                  }}
+                >
+                  DriveWise · Suggestion personnalisée
+                </Text>
+              </View>
             </View>
-          </View>
-        </View>
-        {lastSnapshotTime && (
-          <Text variant="bodySmall" style={styles.lastSnapshot}>
-            Dernier snapshot: {lastSnapshotTime.toLocaleTimeString('fr-FR')}
-          </Text>
-        )}
-        {locationError && (
-          <Text variant="bodySmall" style={styles.errorText}>
-            ⚠️ GPS: {typeof locationError === 'string' ? locationError : locationError?.message || 'Erreur GPS'}
-          </Text>
-        )}
-      </View>
+          </Card>
+        </FadeSlideIn>
+      ) : null}
 
-      {/* End Shift Button */}
-      <Button
-        mode="contained"
-        onPress={handleEndShift}
-        style={styles.endButton}
-        buttonColor={colors.error}
-        disabled={isEnding}
-        loading={isEnding}
-      >
-        {isEnding ? 'Fin en cours...' : 'Terminer le trajet'}
-      </Button>
+      {/* --- Block 4 : minimal status row ----------------------------- */}
+      <FadeSlideIn fromY={10} duration={380} delay={320} style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: spacing.lg,
+          marginBottom: spacing.xl,
+        }}>
+        <StatusPill
+          icon={<Radio size={13} color={isTracking ? colors.fatigueRest : colors.inkSubtle} />}
+          label={isTracking ? 'GPS actif' : 'GPS inactif'}
+          color={isTracking ? colors.fatigueRest : colors.inkSubtle}
+        />
+        <Text
+          style={{
+            ...typeScale.caption,
+            color: colors.inkMuted,
+          }}
+        >
+          {snapshotCount} {snapshotCount > 1 ? 'mesures' : 'mesure'}
+        </Text>
+        {lastSnapshotTime ? (
+          <Text
+            style={{
+              fontFamily: fonts.monoRegular,
+              fontSize: 11,
+              color: colors.inkSubtle,
+              letterSpacing: 0.4,
+            }}
+          >
+            {lastSnapshotTime.toLocaleTimeString('fr-FR', {
+              hour: '2-digit',
+              minute: '2-digit',
+            })}
+          </Text>
+        ) : null}
+      </FadeSlideIn>
+
+      {locationError ? (
+        <Text
+          style={{
+            ...typeScale.bodySm,
+            color: colors.error,
+            textAlign: 'center',
+            marginBottom: spacing.md,
+          }}
+        >
+          GPS : {typeof locationError === 'string' ? locationError : locationError?.message}
+        </Text>
+      ) : null}
+
+      {/* --- Block 5 : end button ------------------------------------ */}
+      <FadeSlideIn duration={380} delay={420} style={{ alignItems: 'center', marginTop: 'auto', paddingTop: spacing.xl }}>
+        <Button
+          variant="subtle"
+          size="lg"
+          fullWidth
+          onPress={handleEndShift}
+          loading={isEnding}
+        >
+          Terminer la session
+        </Button>
+      </FadeSlideIn>
     </Screen>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  screenContent: {
-    flexGrow: 1,
-    paddingHorizontal: spacing.md,
-    paddingTop: spacing.md,
-    paddingBottom: spacing.xl,
-    gap: spacing.md,
-  },
-  header: {
-    backgroundColor: colors.white,
-    paddingTop: spacing.md + 4,
-    paddingBottom: spacing.md,
-    paddingHorizontal: spacing.md,
-    marginBottom: spacing.md,
-    shadowColor: colors.black,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  headerContent: {
-    alignItems: 'center',
-  },
-  title: {
-    fontWeight: 'bold',
-    color: colors.darkGray,
-    marginBottom: spacing.xs,
-  },
-  timer: {
-    fontWeight: '600',
-    fontSize: 32,
-    color: colors.primary,
-    marginTop: spacing.xs,
-  },
-  suggestionCard: {
-    backgroundColor: colors.primaryLight,
-    borderLeftWidth: 4,
-    borderLeftColor: colors.primary,
-  },
-  suggestionTitle: {
-    fontWeight: 'bold',
-    marginBottom: spacing.sm,
-    color: colors.primaryDark,
-  },
-  statsContainer: {
-    backgroundColor: colors.white,
-    borderRadius: 12,
-    padding: spacing.md,
-  },
-  statRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-  },
-  statItem: {
-    alignItems: 'center',
-  },
-  statLabel: {
-    color: colors.gray,
-  },
-  statusRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-  },
-  statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  lastSnapshot: {
-    textAlign: 'center',
-    color: colors.gray,
-    marginTop: spacing.sm,
-  },
-  errorText: {
-    textAlign: 'center',
-    color: colors.error,
-    marginTop: spacing.sm,
-  },
-  endButton: {
-    marginTop: spacing.md,
-    paddingVertical: spacing.sm,
-  },
-});
+// ---- Tiny inline status pill ------------------------------------------
+function StatusPill({
+  icon,
+  label,
+  color,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  color: string;
+}) {
+  const { fonts } = useTheme();
+  return (
+    <View
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+      }}
+    >
+      {icon}
+      <Text
+        style={{
+          fontFamily: fonts.bodyMedium,
+          fontSize: 11,
+          letterSpacing: 1.0,
+          textTransform: 'uppercase',
+          color,
+        }}
+      >
+        {label}
+      </Text>
+    </View>
+  );
+}

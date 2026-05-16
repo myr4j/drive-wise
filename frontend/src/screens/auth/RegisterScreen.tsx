@@ -1,36 +1,41 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
-  View,
-  StyleSheet,
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   ScrollView,
-  TouchableOpacity,
-  Alert,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native';
-import { Text, TextInput, Button } from 'react-native-paper';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import FadeSlideIn from '@/components/ui/FadeSlideIn';
+import { ChevronLeft } from 'lucide-react-native';
 
 import { registerSchema, RegisterFormData } from '@/utils/validators';
 import { authApi } from '@/services';
 import { useAuthStore } from '@/store';
-import { colors, spacing } from '@/utils/theme';
+import { useTheme } from '@/contexts/ThemeContext';
+import { useToast } from '@/components/ui/Toast';
+import Input from '@/components/ui/Input';
+import Button from '@/components/ui/Button';
 
 type RootStackParamList = {
   Login: undefined;
   Register: undefined;
   Dashboard: undefined;
 };
-
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 export default function RegisterScreen() {
+  const { colors, fonts, spacing, typeScale } = useTheme();
+  const toast = useToast();
   const navigation = useNavigation<NavigationProp>();
   const { setDriver, setLoading, setError } = useAuthStore();
-  const [isLoading, setIsLoading] = React.useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   const {
     control,
@@ -38,25 +43,20 @@ export default function RegisterScreen() {
     formState: { errors },
   } = useForm<RegisterFormData>({
     resolver: zodResolver(registerSchema),
-    defaultValues: {
-      username: '',
-      email: '',
-      password: '',
-    },
+    defaultValues: { username: '', email: '', password: '' },
   });
 
   const onSubmit = async (data: RegisterFormData) => {
     setIsLoading(true);
     setLoading(true);
     setError(null);
-
     try {
       const response = await authApi.register(data);
       setDriver(response);
-      // Navigation will be handled by the main App component watching auth state
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Erreur d\'inscription';
-      Alert.alert('Erreur d\'inscription', message);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Erreur d'inscription";
+      toast.error(message, 'Inscription impossible');
       setError(message);
     } finally {
       setIsLoading(false);
@@ -66,160 +66,147 @@ export default function RegisterScreen() {
 
   return (
     <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: colors.surface }}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={styles.container}
     >
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={{
+          flexGrow: 1,
+          justifyContent: 'center',
+          paddingHorizontal: spacing.xl,
+          paddingVertical: spacing.xxxl,
+        }}
         keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
       >
-        <View style={styles.header}>
-          <Text variant="headlineMedium" style={styles.title}>
-            Créer un compte
+        {/* Back link */}
+        <Pressable
+          onPress={() => navigation.navigate('Login')}
+          hitSlop={12}
+          style={({ pressed }) => ({
+            flexDirection: 'row',
+            alignItems: 'center',
+            alignSelf: 'flex-start',
+            marginBottom: spacing.xl,
+            opacity: pressed ? 0.6 : 1,
+          })}
+        >
+          <ChevronLeft size={18} color={colors.inkMuted} strokeWidth={2} />
+          <Text
+            style={{
+              ...typeScale.bodyMd,
+              color: colors.inkMuted,
+              marginLeft: 4,
+            }}
+          >
+            Se connecter
           </Text>
-          <Text variant="bodyMedium" style={styles.subtitle}>
-            Rejoignez DriveWise dès aujourd'hui
-          </Text>
-        </View>
+        </Pressable>
 
-        <View style={styles.form}>
+        <FadeSlideIn duration={420} style={{ marginBottom: spacing.xxl }}>
+          <View style={[styles.brandMark, { backgroundColor: colors.accent }]} />
+          <Text
+            style={{
+              ...typeScale.caption,
+              color: colors.inkMuted,
+              marginTop: spacing.md,
+            }}
+          >
+            Nouveau compte
+          </Text>
+          <Text
+            style={{
+              fontFamily: fonts.displayItalic,
+              fontSize: 38,
+              lineHeight: 46,
+              color: colors.ink,
+              marginTop: spacing.xs,
+              letterSpacing: -0.5,
+            }}
+          >
+            On commence ?
+          </Text>
+          <Text
+            style={{
+              ...typeScale.bodyLg,
+              color: colors.inkMuted,
+              marginTop: spacing.sm,
+              maxWidth: 320,
+            }}
+          >
+            Trois champs, et vous êtes sur la route.
+          </Text>
+        </FadeSlideIn>
+
+        <FadeSlideIn fromY={12} duration={420} delay={100}>
           <Controller
             control={control}
             name="username"
             render={({ field: { onChange, onBlur, value } }) => (
-              <TextInput
+              <Input
                 label="Nom d'utilisateur"
-                mode="outlined"
-                onBlur={onBlur}
-                onChangeText={onChange}
                 value={value}
-                error={!!errors.username}
+                onChangeText={onChange}
+                onBlur={onBlur}
+                error={errors.username?.message}
                 autoCapitalize="none"
-                style={styles.input}
-                outlineColor={colors.primaryLight}
-                activeOutlineColor={colors.primary}
               />
             )}
           />
-          {errors.username && (
-            <Text style={styles.errorText}>{errors.username.message}</Text>
-          )}
 
           <Controller
             control={control}
             name="email"
             render={({ field: { onChange, onBlur, value } }) => (
-              <TextInput
-                label="Email"
-                mode="outlined"
-                onBlur={onBlur}
-                onChangeText={onChange}
+              <Input
+                label="Adresse email"
                 value={value}
-                error={!!errors.email}
+                onChangeText={onChange}
+                onBlur={onBlur}
+                error={errors.email?.message}
                 keyboardType="email-address"
                 autoCapitalize="none"
-                style={styles.input}
-                outlineColor={colors.primaryLight}
-                activeOutlineColor={colors.primary}
               />
             )}
           />
-          {errors.email && (
-            <Text style={styles.errorText}>{errors.email.message}</Text>
-          )}
 
           <Controller
             control={control}
             name="password"
             render={({ field: { onChange, onBlur, value } }) => (
-              <TextInput
+              <Input
                 label="Mot de passe"
-                mode="outlined"
-                onBlur={onBlur}
-                onChangeText={onChange}
                 value={value}
-                error={!!errors.password}
+                onChangeText={onChange}
+                onBlur={onBlur}
+                error={errors.password?.message}
                 secureTextEntry
-                style={styles.input}
-                outlineColor={colors.primaryLight}
-                activeOutlineColor={colors.primary}
+                autoCapitalize="none"
               />
             )}
           />
-          {errors.password && (
-            <Text style={styles.errorText}>{errors.password.message}</Text>
-          )}
 
-          <Button
-            mode="contained"
-            onPress={handleSubmit(onSubmit)}
-            style={styles.button}
-            disabled={isLoading}
-            loading={isLoading}
-          >
-            {isLoading ? 'Inscription...' : "S'inscrire"}
-          </Button>
-
-          <View style={styles.loginContainer}>
-            <Text variant="bodyMedium">Déjà un compte ?</Text>
-            <TouchableOpacity onPress={() => navigation.navigate('Login')}>
-              <Text variant="bodyMedium" style={styles.loginLink}>
-                Se connecter
-              </Text>
-            </TouchableOpacity>
+          <View style={{ marginTop: spacing.xl }}>
+            <Button
+              variant="primary"
+              size="lg"
+              fullWidth
+              onPress={handleSubmit(onSubmit)}
+              loading={isLoading}
+            >
+              {isLoading ? 'Création en cours' : 'Créer mon compte'}
+            </Button>
           </View>
-        </View>
+        </FadeSlideIn>
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    padding: spacing.lg,
-  },
-  header: {
-    alignItems: 'center',
-    marginBottom: spacing.xl,
-  },
-  title: {
-    fontWeight: 'bold',
-    color: colors.primary,
-    marginBottom: spacing.sm,
-  },
-  subtitle: {
-    color: colors.darkGray,
-  },
-  form: {
-    gap: spacing.md,
-  },
-  input: {
-    backgroundColor: colors.white,
-  },
-  button: {
-    marginTop: spacing.sm,
-    paddingVertical: spacing.sm,
-  },
-  loginContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: spacing.lg,
-    gap: spacing.sm,
-  },
-  loginLink: {
-    color: colors.primary,
-    fontWeight: '600',
-  },
-  errorText: {
-    color: colors.error,
-    fontSize: 12,
-    marginTop: spacing.xs,
+  brandMark: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
   },
 });

@@ -1,9 +1,9 @@
 import React from 'react';
-import { View, StyleSheet } from 'react-native';
-import { Text, IconButton } from 'react-native-paper';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ChevronLeft } from 'lucide-react-native';
 
-import { colors, spacing } from '@/utils/theme';
+import { useTheme } from '@/contexts/ThemeContext';
 
 interface HeaderProps {
   title: string;
@@ -11,7 +11,12 @@ interface HeaderProps {
   showBackButton?: boolean;
   onBackPress?: () => void;
   rightAction?: React.ReactNode;
-  variant?: 'primary' | 'secondary' | 'transparent';
+  /**
+   * - "flush" (default): transparent, sits on surface, hairline divider
+   * - "elevated": surface-elevated background, no divider
+   * - "minimal": no divider, no background — useful for hero screens
+   */
+  variant?: 'flush' | 'elevated' | 'minimal';
 }
 
 export default function Header({
@@ -20,90 +25,83 @@ export default function Header({
   showBackButton = false,
   onBackPress,
   rightAction,
-  variant = 'primary',
+  variant = 'flush',
 }: HeaderProps) {
+  const { colors, spacing, fonts, typeScale } = useTheme();
   const insets = useSafeAreaInsets();
 
-  const headerStyles = [
-    styles.header,
-    { paddingTop: insets.top + spacing.md },
-    variant === 'primary' && styles.primaryHeader,
-    variant === 'secondary' && styles.secondaryHeader,
-    variant === 'transparent' && styles.transparentHeader,
-  ];
+  const bg =
+    variant === 'elevated'
+      ? colors.surfaceElevated
+      : variant === 'minimal'
+      ? 'transparent'
+      : colors.surface;
+
+  const showDivider = variant === 'flush' || variant === 'elevated';
 
   return (
-    <View style={headerStyles}>
-      <View style={styles.content}>
+    <View
+      style={{
+        paddingTop: insets.top + spacing.sm,
+        paddingBottom: spacing.md,
+        paddingHorizontal: spacing.lg,
+        backgroundColor: bg,
+        borderBottomWidth: showDivider ? StyleSheet.hairlineWidth : 0,
+        borderBottomColor: colors.hairline,
+      }}
+    >
+      <View style={styles.row}>
         {showBackButton && (
-          <IconButton
-            icon="arrow-left"
-            size={24}
+          <Pressable
             onPress={onBackPress}
-            iconColor={variant === 'transparent' ? colors.darkGray : colors.white}
-          />
+            hitSlop={12}
+            style={({ pressed }) => ({
+              marginRight: spacing.sm,
+              opacity: pressed ? 0.6 : 1,
+              padding: 4,
+              marginLeft: -4,
+            })}
+            accessibilityRole="button"
+            accessibilityLabel="Retour"
+          >
+            <ChevronLeft size={24} color={colors.ink} strokeWidth={2} />
+          </Pressable>
         )}
-        <View style={[styles.titleContainer, showBackButton && styles.titleContainerWithBack]}>
+
+        <View style={{ flex: 1 }}>
           <Text
-            variant="titleLarge"
-            style={[
-              styles.title,
-              variant === 'transparent' ? { color: colors.darkGray } : { color: colors.white },
-            ]}
+            style={{
+              ...typeScale.displaySm,
+              color: colors.ink,
+              fontFamily: fonts.display,
+            }}
+            numberOfLines={1}
           >
             {title}
           </Text>
           {subtitle && (
             <Text
-              variant="bodySmall"
-              style={[
-                styles.subtitle,
-                variant === 'transparent' ? { color: colors.gray } : { color: colors.white + 'CC' },
-              ]}
+              style={{
+                ...typeScale.bodySm,
+                color: colors.inkMuted,
+                marginTop: 2,
+              }}
+              numberOfLines={1}
             >
               {subtitle}
             </Text>
           )}
         </View>
-        {rightAction && <View style={styles.rightAction}>{rightAction}</View>}
+
+        {rightAction && <View style={{ marginLeft: spacing.sm }}>{rightAction}</View>}
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  header: {
-    paddingBottom: spacing.md,
-    paddingHorizontal: spacing.md,
-  },
-  primaryHeader: {
-    backgroundColor: colors.primary,
-  },
-  secondaryHeader: {
-    backgroundColor: colors.darkGray,
-  },
-  transparentHeader: {
-    backgroundColor: 'transparent',
-    borderBottomWidth: 1,
-    borderBottomColor: colors.lightGray,
-  },
-  content: {
+  row: {
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  titleContainer: {
-    flex: 1,
-  },
-  titleContainerWithBack: {
-    marginLeft: spacing.xs,
-  },
-  title: {
-    fontWeight: 'bold',
-  },
-  subtitle: {
-    marginTop: 2,
-  },
-  rightAction: {
-    marginLeft: 'auto',
   },
 });
