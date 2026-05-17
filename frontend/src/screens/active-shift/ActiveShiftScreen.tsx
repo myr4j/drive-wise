@@ -1,11 +1,12 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Alert, Platform, StyleSheet, Text, View } from 'react-native';
+import { Alert, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import FadeSlideIn from '@/components/ui/FadeSlideIn';
 import { Quote, Radio, Compass, Coffee, Sunset } from 'lucide-react-native';
 
-import { useShiftStore, useFatigueStore } from '@/store';
+import { useShiftStore, useFatigueStore, usePreferenceStore } from '@/store';
+import { driverApi } from '@/services/driver';
 import { cancelSessionEndReminder } from '@/services/notifications';
 import { shiftsApi } from '@/services';
 import { useShift } from '@/hooks/useShift';
@@ -51,11 +52,13 @@ export default function ActiveShiftScreen() {
     error: locationError,
   } = useShift({ snapshotInterval: 30000, enableBackgroundTracking: true });
 
+  const { typical_start_h, typical_end_h } = usePreferenceStore();
   const [timeSinceStart, setTimeSinceStart] = useState(0);
   const [breakMinutes, setBreakMinutes] = useState(0);
   const [isEnding, setIsEnding] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
   const [isTogglingBreak, setIsTogglingBreak] = useState(false);
+  const [suggestionRating, setSuggestionRating] = useState<1 | -1 | null>(null);
 
   // Diagnostic: confirm activeShift state on every render
   console.log('🚗 ActiveShiftScreen render — activeShift:', activeShift?.shift_id ?? 'null');
@@ -318,11 +321,55 @@ export default function ActiveShiftScreen() {
                 <Text style={{ ...typeScale.caption, color: colors.inkMuted, marginTop: spacing.sm }}>
                   {suggestion.is_end_of_day ? 'DriveWise · Recommandation fin de journée' : 'DriveWise · Suggestion personnalisée'}
                 </Text>
+                {/* Notation */}
+                <View style={{ flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm }}>
+                  {([1, -1] as const).map((r) => (
+                    <Pressable
+                      key={r}
+                      onPress={async () => {
+                        if (suggestionRating !== null || !activeShift) return;
+                        setSuggestionRating(r);
+                        try { await driverApi.rateSuggestion(activeShift.shift_id, r); } catch {}
+                      }}
+                      style={{
+                        paddingVertical: 4, paddingHorizontal: spacing.sm,
+                        borderRadius: 8,
+                        backgroundColor: suggestionRating === r
+                          ? (r === 1 ? colors.fatigueRest : colors.fatigueStop) + '33'
+                          : colors.surfaceSunken,
+                        opacity: suggestionRating !== null && suggestionRating !== r ? 0.3 : 1,
+                      }}
+                    >
+                      <Text style={{ fontSize: 16 }}>{r === 1 ? '👍' : '👎'}</Text>
+                    </Pressable>
+                  ))}
+                  {suggestionRating && (
+                    <Text style={{ ...typeScale.bodySm, color: colors.inkMuted, alignSelf: 'center' }}>
+                      Noté, merci !
+                    </Text>
+                  )}
+                </View>
               </View>
             </View>
           </Card>
         </FadeSlideIn>
       ) : null}
+
+      {/* --- Estimation fin de journée -------------------------------- */}
+      {activeShift && (
+        <FadeSlideIn fromY={6} duration={360} delay={280} style={{ alignItems: 'center', marginBottom: spacing.md }}>
+          {(() => {
+            const workH = typical_end_h - typical_start_h;
+            const safeH = Math.max(workH, 8);
+            const est = new Date(new Date(activeShift.started_at).getTime() + safeH * 3600000);
+            return (
+              <Text style={{ ...typeScale.bodySm, color: colors.inkSubtle, fontFamily: fonts.monoRegular }}>
+                Fin recommandée · {est.getHours().toString().padStart(2, '0')}h{est.getMinutes().toString().padStart(2, '0')}
+              </Text>
+            );
+          })()}
+        </FadeSlideIn>
+      )}
 
       {/* --- Block 4 : minimal status row ----------------------------- */}
       <FadeSlideIn fromY={10} duration={380} delay={320} style={{

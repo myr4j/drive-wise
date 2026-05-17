@@ -1,10 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from datetime import datetime
+from typing import Optional
+from pydantic import BaseModel
 
 from app.database.base import get_db
-from app.models.driver import Driver
+from app.models.driver import Driver, DriverPreference
 from app.models.shift import Shift, Snapshot
 
 router = APIRouter(prefix="/driver", tags=["driver"])
@@ -72,6 +73,48 @@ def export_data(driver_id: int = Query(...), db: Session = Depends(get_db)):
         },
         "shifts": shift_list,
     }
+
+
+class PreferenceUpdate(BaseModel):
+    work_days: Optional[str] = None
+    typical_start_h: Optional[int] = None
+    typical_end_h: Optional[int] = None
+    revenue_goal: Optional[float] = None
+
+
+@router.get("/me/preferences")
+def get_preferences(driver_id: int = Query(...), db: Session = Depends(get_db)):
+    pref = db.query(DriverPreference).filter(DriverPreference.driver_id == driver_id).first()
+    if not pref:
+        pref = DriverPreference(driver_id=driver_id)
+        db.add(pref)
+        db.commit()
+        db.refresh(pref)
+    return {
+        "driver_id": pref.driver_id,
+        "work_days": pref.work_days,
+        "typical_start_h": pref.typical_start_h,
+        "typical_end_h": pref.typical_end_h,
+        "revenue_goal": pref.revenue_goal,
+    }
+
+
+@router.put("/me/preferences")
+def update_preferences(payload: PreferenceUpdate, driver_id: int = Query(...), db: Session = Depends(get_db)):
+    pref = db.query(DriverPreference).filter(DriverPreference.driver_id == driver_id).first()
+    if not pref:
+        pref = DriverPreference(driver_id=driver_id)
+        db.add(pref)
+    if payload.work_days is not None:
+        pref.work_days = payload.work_days
+    if payload.typical_start_h is not None:
+        pref.typical_start_h = payload.typical_start_h
+    if payload.typical_end_h is not None:
+        pref.typical_end_h = payload.typical_end_h
+    if payload.revenue_goal is not None:
+        pref.revenue_goal = payload.revenue_goal
+    db.commit()
+    return {"message": "Préférences mises à jour"}
 
 
 @router.delete("/me")

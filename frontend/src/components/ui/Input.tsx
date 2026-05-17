@@ -97,6 +97,63 @@ export default function Input({
     ? colors.accent
     : colors.hairlineStrong;
 
+  // Multiline uses a flat layout: static label on top, input below.
+  if (multiline) {
+    return (
+      <View style={{ marginBottom: spacing.md }}>
+        <Text
+          style={{
+            color: error ? colors.error : focused ? colors.accent : colors.inkMuted,
+            fontFamily: fonts.bodyMedium,
+            fontSize: 11,
+            letterSpacing: 1.0,
+            textTransform: 'uppercase',
+            marginBottom: spacing.xs,
+          }}
+        >
+          {label}
+        </Text>
+        <TextInput
+          ref={inputRef}
+          value={value}
+          onChangeText={onChangeText}
+          onFocus={() => setFocused(true)}
+          onBlur={() => { setFocused(false); onBlur?.(); }}
+          placeholder={placeholder}
+          placeholderTextColor={colors.inkSubtle}
+          autoCapitalize={autoCapitalize}
+          editable={editable}
+          multiline
+          numberOfLines={numberOfLines}
+          textAlignVertical="top"
+          selectionColor={colors.accent}
+          style={{
+            fontFamily: fonts.body,
+            fontSize: 16,
+            lineHeight: 22,
+            color: colors.ink,
+            paddingVertical: spacing.sm,
+            paddingHorizontal: 0,
+            minHeight: 88,
+            borderBottomWidth: focused ? 2 : StyleSheet.hairlineWidth,
+            borderBottomColor: underlineColor,
+          }}
+        />
+        {(error || helperText) && (
+          <Text
+            style={{
+              ...typeScale.bodySm,
+              color: error ? colors.error : colors.inkMuted,
+              marginTop: spacing.xs,
+            }}
+          >
+            {error || helperText}
+          </Text>
+        )}
+      </View>
+    );
+  }
+
   return (
     <View style={{ marginBottom: spacing.md }}>
       <View

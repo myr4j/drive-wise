@@ -6,8 +6,10 @@ import FadeSlideIn from '@/components/ui/FadeSlideIn';
 import { ArrowRight, Sunrise, Lightbulb } from 'lucide-react-native';
 import { getTodayPreShiftTip } from '@/content/advice';
 
-import { useAuthStore, useShiftStore, useNotificationStore } from '@/store';
-import { scheduleSessionEndReminder } from '@/services/notifications';
+import { useAuthStore, useShiftStore, useNotificationStore, usePreferenceStore } from '@/store';
+import { Coffee, Square } from 'lucide-react-native';
+import { scheduleSessionEndReminder, cancelSessionEndReminder } from '@/services/notifications';
+import { Alert } from 'react-native';
 import { shiftsApi } from '@/services';
 import Screen from '@/components/layout/Screen';
 import Card from '@/components/ui/Card';
@@ -37,7 +39,7 @@ export default function DashboardScreen() {
     useNavigation<NativeStackNavigationProp<MainTabsParamList>>();
   const toast = useToast();
   const { driver } = useAuthStore();
-  const { activeShift, setActiveShift } = useShiftStore();
+  const { activeShift, setActiveShift, clearActiveShift: clearActiveShiftStore, isOnBreak, startBreak: storeStartBreak, endBreak: storeEndBreak } = useShiftStore();
   const { notificationsEnabled, sessionEndEnabled, sessionEndThresholdHours } = useNotificationStore();
 
   const [stats, setStats] = useState<{
@@ -124,6 +126,55 @@ export default function DashboardScreen() {
     if (activeShift) navigation.navigate('ActiveShift');
   };
 
+  const [isTogglingBreak, setIsTogglingBreak] = useState(false);
+  const [isEndingShift, setIsEndingShift] = useState(false);
+
+  const handleQuickBreak = async () => {
+    if (!activeShift) return;
+    setIsTogglingBreak(true);
+    try {
+      if (isOnBreak) {
+        const result = await shiftsApi.endBreak(String(activeShift.shift_id));
+        storeEndBreak();
+        toast.success(`Pause terminée (${result.duration_min.toFixed(0)} min)`);
+      } else {
+        const result = await shiftsApi.startBreak(String(activeShift.shift_id));
+        storeStartBreak(result.break_id, result.started_at);
+        toast.info('Pause démarrée');
+      }
+    } catch {
+      toast.error('Impossible de gérer la pause');
+    } finally {
+      setIsTogglingBreak(false);
+    }
+  };
+
+  const handleQuickEnd = () => {
+    Alert.alert(
+      'Terminer la session ?',
+      'Le suivi de fatigue s\'arrête et le trajet est archivé.',
+      [
+        { text: 'Continuer', style: 'cancel' },
+        {
+          text: 'Terminer', style: 'destructive', onPress: async () => {
+            if (!activeShift) return;
+            setIsEndingShift(true);
+            try {
+              await shiftsApi.endShift(String(activeShift.shift_id));
+              cancelSessionEndReminder();
+              clearActiveShiftStore();
+              toast.success('Trajet terminé');
+            } catch {
+              toast.error('Impossible de terminer le trajet');
+            } finally {
+              setIsEndingShift(false);
+            }
+          }
+        },
+      ]
+    );
+  };
+
   const greeting = getGreeting(new Date().getHours());
   const firstName = driver?.username?.split(' ')[0] ?? 'Conducteur';
 
@@ -178,7 +229,7 @@ export default function DashboardScreen() {
 
       {/* --- Active shift hero OR start CTA ------------------------- */}
       <FadeSlideIn fromY={12} delay={80}>
-        {activeShift ? (
+        {activeShift && (
           <Card
             variant="accent"
             interactive
@@ -237,7 +288,33 @@ export default function DashboardScreen() {
               <ArrowRight size={20} color={colors.accent} strokeWidth={2} />
             </View>
           </Card>
-        ) : (
+        )}
+        {/* Raccourcis rapides — visibles uniquement si trajet actif */}
+        {activeShift && (
+          <View style={{ flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm }}>
+            <Button
+              variant="subtle"
+              size="sm"
+              onPress={handleQuickBreak}
+              loading={isTogglingBreak}
+              icon={<Coffee size={14} color={colors.inkMuted} strokeWidth={2} />}
+              style={{ flex: 1 }}
+            >
+              {isOnBreak ? 'Reprendre' : 'Pause'}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onPress={handleQuickEnd}
+              loading={isEndingShift}
+              icon={<Square size={14} color={colors.inkMuted} strokeWidth={2} />}
+              style={{ flex: 1 }}
+            >
+              Terminer
+            </Button>
+          </View>
+        )}
+        {!activeShift && (
           <Card style={{ paddingVertical: spacing.xl }}>
             <Text
               style={{

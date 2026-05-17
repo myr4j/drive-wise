@@ -492,6 +492,21 @@ def get_driver_stats(
     )
 
 
+@router.post("/{shift_id}/rate-suggestion")
+def rate_suggestion(shift_id: int, rating: int = Query(..., ge=-1, le=1), db: Session = Depends(get_db)):
+    snapshot = (
+        db.query(Snapshot)
+        .filter(Snapshot.shift_id == shift_id, Snapshot.suggestion_given == 1)
+        .order_by(Snapshot.timestamp.desc())
+        .first()
+    )
+    if not snapshot:
+        raise HTTPException(status_code=404, detail="Aucune suggestion à noter")
+    snapshot.suggestion_rating = rating
+    db.commit()
+    return {"message": "Notation enregistrée", "snapshot_id": snapshot.id, "rating": rating}
+
+
 @router.post("/{shift_id}/break/start")
 def start_break(shift_id: int, db: Session = Depends(get_db)):
     shift = db.query(Shift).filter(Shift.id == shift_id, Shift.status == "active").first()

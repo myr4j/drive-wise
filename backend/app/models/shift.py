@@ -89,6 +89,7 @@ class Snapshot(Base):
     suggestion_given = Column(Integer, default=0)
     suggestion_message = Column(String(500), nullable=True)
     suggestion_delivery = Column(String(20), nullable=True)
+    suggestion_rating = Column(Integer, nullable=True)  # -1 = mauvais, 1 = bon
 
     shift = relationship("Shift", back_populates="snapshots")
 

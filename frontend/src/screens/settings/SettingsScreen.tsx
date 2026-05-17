@@ -23,6 +23,9 @@ import {
   BellOff,
   Clock,
   VolumeX,
+  BookOpen,
+  MessageSquare,
+  Briefcase,
 } from 'lucide-react-native';
 import FadeSlideIn from '@/components/ui/FadeSlideIn';
 
@@ -31,7 +34,11 @@ import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import { useToast } from '@/components/ui/Toast';
-import { useAuthStore, useNotificationStore } from '@/store';
+import { useAuthStore, useNotificationStore, usePreferenceStore } from '@/store';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList } from '@/types/navigation';
+import { driverApi } from '@/services/driver';
 import {
   requestNotificationPermissions,
   scheduleSessionStartReminder,
@@ -48,6 +55,7 @@ const APP_VERSION = '1.0.0';
 
 export default function SettingsScreen() {
   const { colors, fonts, spacing, typeScale, borderRadius } = useTheme();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { driver, clearDriver } = useAuthStore();
   const {
     notificationsEnabled,
@@ -80,6 +88,32 @@ export default function SettingsScreen() {
   };
 
   const [isExporting, setIsExporting] = useState(false);
+  const [feedbackMessage, setFeedbackMessage] = useState('');
+  const [feedbackCategory, setFeedbackCategory] = useState<'bug' | 'suggestion' | 'general'>('general');
+  const [showFeedback, setShowFeedback] = useState(false);
+  const [isSendingFeedback, setIsSendingFeedback] = useState(false);
+
+  const {
+    work_days, typical_start_h, typical_end_h, revenue_goal, update: updatePrefs,
+  } = usePreferenceStore();
+
+  const handleSendFeedback = async () => {
+    if (feedbackMessage.trim().length < 5) {
+      toast.warning('Message trop court (5 caractères minimum)');
+      return;
+    }
+    setIsSendingFeedback(true);
+    try {
+      await driverApi.submitFeedback(driver?.id ?? null, feedbackCategory, feedbackMessage.trim());
+      toast.success('Merci pour votre retour !');
+      setFeedbackMessage('');
+      setShowFeedback(false);
+    } catch {
+      toast.error('Envoi impossible, réessayez.');
+    } finally {
+      setIsSendingFeedback(false);
+    }
+  };
 
   const handleExportData = async () => {
     if (!driver) return;
@@ -240,6 +274,102 @@ export default function SettingsScreen() {
         />
       </Section>
 
+      {/* Préférences de travail */}
+      <Section title="Préférences de travail">
+        <View style={{ paddingHorizontal: spacing.md, paddingVertical: spacing.md, gap: spacing.md }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+            <Briefcase size={16} color={colors.inkMuted} strokeWidth={1.8} />
+            <Text style={{ ...typeScale.bodySm, color: colors.inkMuted }}>
+              Jours travaillés
+            </Text>
+          </View>
+          <DayPicker
+            value={work_days}
+            onChange={(v) => driver && updatePrefs(driver.id, { work_days: v })}
+          />
+          <View style={{ flexDirection: 'row', gap: spacing.md }}>
+            <View style={{ flex: 1 }}>
+              <Input
+                label="Heure de début"
+                value={String(typical_start_h)}
+                onChangeText={(v) => {
+                  const h = parseInt(v, 10);
+                  if (!isNaN(h) && h >= 0 && h <= 23 && driver) {
+                    updatePrefs(driver.id, { typical_start_h: h });
+                  }
+                }}
+                keyboardType="numeric"
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Input
+                label="Heure de fin"
+                value={String(typical_end_h)}
+                onChangeText={(v) => {
+                  const h = parseInt(v, 10);
+                  if (!isNaN(h) && h >= 0 && h <= 23 && driver) {
+                    updatePrefs(driver.id, { typical_end_h: h });
+                  }
+                }}
+                keyboardType="numeric"
+              />
+            </View>
+          </View>
+        </View>
+      </Section>
+
+      {/* Fiches éducatives */}
+      <Section title="Ressources">
+        <SettingsRow
+          icon={<BookOpen size={18} color={colors.inkMuted} />}
+          title="Fiches éducatives"
+          subtitle="6 fiches sur la fatigue au volant"
+          onPress={() => navigation.navigate('Education')}
+          showChevron
+        />
+      </Section>
+
+      {/* Feedback */}
+      <Section title="Aide & Feedback">
+        <SettingsRow
+          icon={<MessageSquare size={18} color={colors.inkMuted} />}
+          title="Envoyer un retour"
+          subtitle="Bug, suggestion ou commentaire"
+          onPress={() => setShowFeedback(v => !v)}
+          showChevron
+        />
+        {showFeedback && (
+          <View style={{ paddingHorizontal: spacing.md, paddingBottom: spacing.md, gap: spacing.sm }}>
+            <View style={{ flexDirection: 'row', gap: spacing.xs }}>
+              {(['general', 'bug', 'suggestion'] as const).map((cat) => (
+                <Pressable
+                  key={cat}
+                  onPress={() => setFeedbackCategory(cat)}
+                  style={{
+                    paddingVertical: 4, paddingHorizontal: spacing.sm,
+                    borderRadius: 8,
+                    backgroundColor: feedbackCategory === cat ? colors.accent : colors.surfaceSunken,
+                  }}
+                >
+                  <Text style={{ ...typeScale.bodySm, color: feedbackCategory === cat ? colors.onAccent : colors.inkMuted }}>
+                    {cat === 'general' ? 'Général' : cat === 'bug' ? 'Bug' : 'Suggestion'}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+            <Input
+              label="Votre message"
+              value={feedbackMessage}
+              onChangeText={setFeedbackMessage}
+              multiline
+            />
+            <Button variant="primary" size="md" fullWidth onPress={handleSendFeedback} loading={isSendingFeedback}>
+              Envoyer
+            </Button>
+          </View>
+        )}
+      </Section>
+
       {/* Notifications */}
       <Section title="Notifications">
         <NotificationToggleRow
@@ -284,6 +414,7 @@ export default function SettingsScreen() {
         {sessionStartEnabled && notificationsEnabled && (
           <HourPicker
             value={sessionStartHour}
+            options={[6, 7, 8, 9, 10, 11, 12]}
             onChange={async (h) => {
               await setPrefs({ sessionStartHour: h });
               await scheduleSessionStartReminder(h, 0);
@@ -602,12 +733,12 @@ function NotificationToggleRow({
   );
 }
 
-// ---- Hour picker (6h–22h) --------------------------------------------
-function HourPicker({ value, onChange }: { value: number; onChange: (h: number) => void }) {
+// ---- Hour picker générique -------------------------------------------
+function HourPicker({ value, onChange, options }: { value: number; onChange: (h: number) => void; options?: number[] }) {
   const { colors, fonts, spacing, typeScale, borderRadius } = useTheme();
-  const HOURS = [6, 7, 8, 9, 10, 11, 12];
+  const HOURS = options ?? [6, 7, 8, 9, 10, 11, 12];
   return (
-    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, paddingHorizontal: spacing.md, paddingBottom: spacing.md }}>
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs }}>
       {HOURS.map((h) => (
         <Pressable
           key={h}
@@ -628,6 +759,42 @@ function HourPicker({ value, onChange }: { value: number; onChange: (h: number) 
           </Text>
         </Pressable>
       ))}
+    </View>
+  );
+}
+
+// ---- Day picker (L M M J V S D) ------------------------------------
+const DAY_LABELS = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
+function DayPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const { colors, fonts, spacing, typeScale, borderRadius } = useTheme();
+  const active = new Set(value.split(',').filter(Boolean));
+  const toggle = (day: string) => {
+    const next = new Set(active);
+    if (next.has(day)) next.delete(day);
+    else next.add(day);
+    onChange(Array.from(next).sort().join(','));
+  };
+  return (
+    <View style={{ flexDirection: 'row', gap: spacing.xs }}>
+      {DAY_LABELS.map((label, i) => {
+        const day = String(i + 1);
+        const isActive = active.has(day);
+        return (
+          <Pressable
+            key={day}
+            onPress={() => toggle(day)}
+            style={{
+              flex: 1, alignItems: 'center', paddingVertical: 6,
+              borderRadius: borderRadius.sm,
+              backgroundColor: isActive ? colors.accent : colors.surfaceSunken,
+            }}
+          >
+            <Text style={{ ...typeScale.bodySm, color: isActive ? colors.onAccent : colors.inkMuted, fontFamily: fonts.bodyMedium }}>
+              {label}
+            </Text>
+          </Pressable>
+        );
+      })}
     </View>
   );
 }

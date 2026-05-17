@@ -1,7 +1,8 @@
 from sqlalchemy import text
 from app.database.base import engine, Base
 from app.models.shift import Shift, Snapshot, Break  # noqa: F401
-from app.models.driver import Driver  # noqa: F401
+from app.models.driver import Driver, DriverPreference  # noqa: F401
+from app.models.feedback import Feedback  # noqa: F401
 
 
 def _run_migrations():
@@ -9,7 +10,7 @@ def _run_migrations():
     migrations = [
         "ALTER TABLE drivers ADD COLUMN consent_at DATETIME",
         "ALTER TABLE drivers ADD COLUMN consent_version VARCHAR(20)",
-        # breaks table créée via create_all, pas besoin d'ALTER
+        "ALTER TABLE snapshots ADD COLUMN suggestion_rating INTEGER",
     ]
     with engine.connect() as conn:
         for stmt in migrations:

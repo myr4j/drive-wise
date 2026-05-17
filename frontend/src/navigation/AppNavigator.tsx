@@ -17,6 +17,7 @@ import {
 } from 'lucide-react-native';
 
 import { LoginScreen, RegisterScreen, ConsentScreen } from '@/screens/auth';
+import EducationScreen from '@/screens/education/EducationScreen';
 import { DashboardScreen } from '@/screens/dashboard';
 import { ActiveShiftScreen } from '@/screens/active-shift';
 import { HistoryScreen } from '@/screens/history';
@@ -231,6 +232,11 @@ export default function AppNavigator() {
                   presentation: 'modal',
                   animation: 'slide_from_bottom',
                 }}
+              />
+              <RootStack.Screen
+                name="Education"
+                component={EducationScreen}
+                options={{ animation: 'slide_from_right' }}
               />
             </>
           )

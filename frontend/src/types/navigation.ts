@@ -4,6 +4,7 @@ export type RootStackParamList = {
   Consent: undefined;
   MainTabs: undefined;
   ShiftDetail: { shiftId: string };
+  Education: undefined;
 };
 
 export type MainTabsParamList = {

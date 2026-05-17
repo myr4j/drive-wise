@@ -116,8 +116,9 @@ export function useShift(options: UseShiftOptions = {}) {
 
       return response;
     } catch (err: any) {
-      const status = err?.response?.status;
-      const detail = err?.response?.data?.detail || err?.message || 'Failed to send snapshot';
+      // ApiErrorClass (from interceptor) exposes .status; raw AxiosError exposes .response.status
+      const status = err?.status ?? err?.response?.status;
+      const detail = err?.message ?? err?.response?.data?.detail ?? 'Failed to send snapshot';
 
       // Race condition: the shift was ended (by user or auto) while a snapshot
       // was already in flight. Backend returns 400 "Shift non actif" — abort
