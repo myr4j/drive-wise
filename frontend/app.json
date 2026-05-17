@@ -26,7 +26,10 @@
       "package": "com.drivewise.app",
       "permissions": [
         "ACCESS_FINE_LOCATION",
-        "ACCESS_BACKGROUND_LOCATION"
+        "ACCESS_BACKGROUND_LOCATION",
+        "RECEIVE_BOOT_COMPLETED",
+        "SCHEDULE_EXACT_ALARM",
+        "USE_EXACT_ALARM"
       ]
     },
     "web": {
@@ -35,7 +38,15 @@
     "extra": {},
     "plugins": [
       "expo-location",
-      "expo-font"
+      "expo-font",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#5B6AF0",
+          "androidMode": "default"
+        }
+      ]
     ]
   }
 }

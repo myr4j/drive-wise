@@ -19,6 +19,10 @@ import {
   Info,
   User,
   Trash2,
+  Bell,
+  BellOff,
+  Clock,
+  VolumeX,
 } from 'lucide-react-native';
 import FadeSlideIn from '@/components/ui/FadeSlideIn';
 
@@ -27,7 +31,13 @@ import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import { useToast } from '@/components/ui/Toast';
-import { useAuthStore } from '@/store';
+import { useAuthStore, useNotificationStore } from '@/store';
+import {
+  requestNotificationPermissions,
+  scheduleSessionStartReminder,
+  cancelSessionStartReminder,
+  cancelAllReminders,
+} from '@/services/notifications';
 import { authApi } from '@/services';
 import {
   useTheme,
@@ -39,6 +49,15 @@ const APP_VERSION = '1.0.0';
 export default function SettingsScreen() {
   const { colors, fonts, spacing, typeScale, borderRadius } = useTheme();
   const { driver, clearDriver } = useAuthStore();
+  const {
+    notificationsEnabled,
+    quietMode,
+    sessionStartEnabled,
+    sessionStartHour,
+    sessionEndEnabled,
+    sessionEndThresholdHours,
+    setPrefs,
+  } = useNotificationStore();
   const toast = useToast();
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [newPassword, setNewPassword] = useState('');
@@ -219,6 +238,73 @@ export default function SettingsScreen() {
           title="Version"
           subtitle={`v${APP_VERSION}`}
         />
+      </Section>
+
+      {/* Notifications */}
+      <Section title="Notifications">
+        <NotificationToggleRow
+          icon={notificationsEnabled
+            ? <Bell size={18} color={colors.inkMuted} />
+            : <BellOff size={18} color={colors.inkMuted} />
+          }
+          title="Notifications activées"
+          value={notificationsEnabled}
+          onToggle={async (v) => {
+            await setPrefs({ notificationsEnabled: v });
+            if (v) {
+              const granted = await requestNotificationPermissions();
+              if (!granted) toast.warning('Autorisez les notifications dans les paramètres système.');
+            } else {
+              await cancelAllReminders();
+            }
+          }}
+        />
+        <Divider />
+        <NotificationToggleRow
+          icon={<VolumeX size={18} color={colors.inkMuted} />}
+          title="Mode discret"
+          subtitle="Recommandations en app uniquement, sans notification push"
+          value={quietMode}
+          disabled={!notificationsEnabled}
+          onToggle={(v) => setPrefs({ quietMode: v })}
+        />
+        <Divider />
+        <NotificationToggleRow
+          icon={<Clock size={18} color={colors.inkMuted} />}
+          title="Rappel de début de session"
+          subtitle={sessionStartEnabled ? `Chaque jour à ${String(sessionStartHour).padStart(2,'0')}h00` : 'Désactivé'}
+          value={sessionStartEnabled}
+          disabled={!notificationsEnabled}
+          onToggle={async (v) => {
+            await setPrefs({ sessionStartEnabled: v });
+            if (v) await scheduleSessionStartReminder(sessionStartHour, 0);
+            else await cancelSessionStartReminder();
+          }}
+        />
+        {sessionStartEnabled && notificationsEnabled && (
+          <HourPicker
+            value={sessionStartHour}
+            onChange={async (h) => {
+              await setPrefs({ sessionStartHour: h });
+              await scheduleSessionStartReminder(h, 0);
+            }}
+          />
+        )}
+        <Divider />
+        <NotificationToggleRow
+          icon={<Bell size={18} color={colors.inkMuted} />}
+          title="Rappel de fin de session"
+          subtitle={sessionEndEnabled ? `Alerte après ${sessionEndThresholdHours}h de conduite` : 'Désactivé'}
+          value={sessionEndEnabled}
+          disabled={!notificationsEnabled}
+          onToggle={(v) => setPrefs({ sessionEndEnabled: v })}
+        />
+        {sessionEndEnabled && notificationsEnabled && (
+          <ThresholdPicker
+            value={sessionEndThresholdHours}
+            onChange={(h) => setPrefs({ sessionEndThresholdHours: h })}
+          />
+        )}
       </Section>
 
       {/* Data & Privacy */}
@@ -455,6 +541,123 @@ function FatigueLegendRow({
       >
         {range}
       </Text>
+    </View>
+  );
+}
+
+// ---- Notification toggle row ------------------------------------------
+function NotificationToggleRow({
+  icon,
+  title,
+  subtitle,
+  value,
+  disabled,
+  onToggle,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  subtitle?: string;
+  value: boolean;
+  disabled?: boolean;
+  onToggle: (v: boolean) => void;
+}) {
+  const { colors, fonts, spacing, typeScale } = useTheme();
+  return (
+    <Pressable
+      onPress={() => !disabled && onToggle(!value)}
+      style={({ pressed }) => ({
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: spacing.md,
+        paddingHorizontal: spacing.md,
+        opacity: pressed || disabled ? 0.5 : 1,
+      })}
+    >
+      <View style={{ width: 28, alignItems: 'center', marginRight: spacing.sm }}>{icon}</View>
+      <View style={{ flex: 1 }}>
+        <Text style={{ ...typeScale.bodyMd, color: colors.ink, fontFamily: fonts.bodyMedium }}>{title}</Text>
+        {subtitle && <Text style={{ ...typeScale.bodySm, color: colors.inkMuted, marginTop: 2 }}>{subtitle}</Text>}
+      </View>
+      <View
+        style={{
+          width: 42,
+          height: 24,
+          borderRadius: 12,
+          backgroundColor: value && !disabled ? colors.accent : colors.surfaceSunken,
+          justifyContent: 'center',
+          paddingHorizontal: 3,
+        }}
+      >
+        <View
+          style={{
+            width: 18,
+            height: 18,
+            borderRadius: 9,
+            backgroundColor: colors.surfaceElevated,
+            alignSelf: value ? 'flex-end' : 'flex-start',
+          }}
+        />
+      </View>
+    </Pressable>
+  );
+}
+
+// ---- Hour picker (6h–22h) --------------------------------------------
+function HourPicker({ value, onChange }: { value: number; onChange: (h: number) => void }) {
+  const { colors, fonts, spacing, typeScale, borderRadius } = useTheme();
+  const HOURS = [6, 7, 8, 9, 10, 11, 12];
+  return (
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, paddingHorizontal: spacing.md, paddingBottom: spacing.md }}>
+      {HOURS.map((h) => (
+        <Pressable
+          key={h}
+          onPress={() => onChange(h)}
+          style={{
+            paddingVertical: 4,
+            paddingHorizontal: spacing.sm,
+            borderRadius: borderRadius.sm,
+            backgroundColor: value === h ? colors.accent : colors.surfaceSunken,
+          }}
+        >
+          <Text style={{
+            ...typeScale.bodySm,
+            color: value === h ? colors.onAccent : colors.inkMuted,
+            fontFamily: fonts.monoRegular,
+          }}>
+            {String(h).padStart(2, '0')}h
+          </Text>
+        </Pressable>
+      ))}
+    </View>
+  );
+}
+
+// ---- Threshold picker (8h, 10h, 12h) ---------------------------------
+function ThresholdPicker({ value, onChange }: { value: number; onChange: (h: number) => void }) {
+  const { colors, fonts, spacing, typeScale, borderRadius } = useTheme();
+  const OPTIONS = [8, 10, 12];
+  return (
+    <View style={{ flexDirection: 'row', gap: spacing.sm, paddingHorizontal: spacing.md, paddingBottom: spacing.md }}>
+      {OPTIONS.map((h) => (
+        <Pressable
+          key={h}
+          onPress={() => onChange(h)}
+          style={{
+            paddingVertical: 4,
+            paddingHorizontal: spacing.md,
+            borderRadius: borderRadius.sm,
+            backgroundColor: value === h ? colors.accent : colors.surfaceSunken,
+          }}
+        >
+          <Text style={{
+            ...typeScale.bodySm,
+            color: value === h ? colors.onAccent : colors.inkMuted,
+            fontFamily: fonts.monoRegular,
+          }}>
+            {h}h
+          </Text>
+        </Pressable>
+      ))}
     </View>
   );
 }

@@ -23,8 +23,9 @@ import { HistoryScreen } from '@/screens/history';
 import ShiftDetailScreen from '@/screens/history/ShiftDetailScreen';
 import { StatsScreen } from '@/screens/stats';
 import { SettingsScreen } from '@/screens/settings';
-import { useAuthStore } from '@/store';
+import { useAuthStore, useNotificationStore } from '@/store';
 import { useTheme } from '@/contexts/ThemeContext';
+import { requestNotificationPermissions, scheduleSessionStartReminder, cancelSessionStartReminder } from '@/services/notifications';
 import LoadingOverlay from '@/components/ui/LoadingOverlay';
 
 import type {
@@ -156,6 +157,22 @@ export default function AppNavigator() {
   const { isAuthenticated, isLoading, hasConsented } = useAuthStore();
   const needsConsent = isAuthenticated && !hasConsented;
   console.log('[NAV] isAuthenticated:', isAuthenticated, '| hasConsented:', hasConsented, '| needsConsent:', needsConsent);
+  const { loadPrefs, notificationsEnabled, sessionStartEnabled, sessionStartHour, sessionStartMinute } = useNotificationStore();
+
+  React.useEffect(() => {
+    if (!isAuthenticated || needsConsent) return;
+    loadPrefs().then(() => {
+      if (notificationsEnabled) {
+        requestNotificationPermissions();
+        if (sessionStartEnabled) {
+          scheduleSessionStartReminder(sessionStartHour, sessionStartMinute);
+        } else {
+          cancelSessionStartReminder();
+        }
+      }
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, needsConsent]);
 
   if (isLoading) {
     return (

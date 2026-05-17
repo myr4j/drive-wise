@@ -6,7 +6,8 @@ import FadeSlideIn from '@/components/ui/FadeSlideIn';
 import { ArrowRight, Sunrise, Lightbulb } from 'lucide-react-native';
 import { getTodayPreShiftTip } from '@/content/advice';
 
-import { useAuthStore, useShiftStore } from '@/store';
+import { useAuthStore, useShiftStore, useNotificationStore } from '@/store';
+import { scheduleSessionEndReminder } from '@/services/notifications';
 import { shiftsApi } from '@/services';
 import Screen from '@/components/layout/Screen';
 import Card from '@/components/ui/Card';
@@ -37,6 +38,7 @@ export default function DashboardScreen() {
   const toast = useToast();
   const { driver } = useAuthStore();
   const { activeShift, setActiveShift } = useShiftStore();
+  const { notificationsEnabled, sessionEndEnabled, sessionEndThresholdHours } = useNotificationStore();
 
   const [stats, setStats] = useState<{
     total_shifts: number;
@@ -107,6 +109,9 @@ export default function DashboardScreen() {
 
       const shift = await shiftsApi.startShift(driver.id);
       setActiveShift(shift);
+      if (notificationsEnabled && sessionEndEnabled) {
+        scheduleSessionEndReminder(shift.started_at, sessionEndThresholdHours);
+      }
       navigation.navigate('ActiveShift');
     } catch (err) {
       toast.error('Impossible de démarrer le trajet');

@@ -6,6 +6,7 @@ import FadeSlideIn from '@/components/ui/FadeSlideIn';
 import { Quote, Radio, Compass, Coffee, Sunset } from 'lucide-react-native';
 
 import { useShiftStore, useFatigueStore } from '@/store';
+import { cancelSessionEndReminder } from '@/services/notifications';
 import { shiftsApi } from '@/services';
 import { useShift } from '@/hooks/useShift';
 import FatigueGauge from '@/components/fatigue/FatigueGauge';
@@ -80,6 +81,7 @@ export default function ActiveShiftScreen() {
     setIsEnding(true);
     try {
       await shiftsApi.endShift(String(activeShift.shift_id));
+      cancelSessionEndReminder();
       toast.success('Trajet terminé', 'Reposez-vous bien.');
       clearActiveShift();
       clearFatigueData();
@@ -96,6 +98,7 @@ export default function ActiveShiftScreen() {
     setIsCancelling(true);
     try {
       await shiftsApi.cancelShift(String(activeShift.shift_id));
+      cancelSessionEndReminder();
       toast.info('Trajet annulé', 'La session a été supprimée.');
       clearActiveShift();
       clearFatigueData();
