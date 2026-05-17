@@ -116,14 +116,21 @@ export function useShift(options: UseShiftOptions = {}) {
 
       return response;
     } catch (err: any) {
-      // Better error handling
-      let errorMessage = 'Failed to send snapshot';
-      if (err?.response?.data?.detail) {
-        errorMessage = err.response.data.detail;
-      } else if (err?.message) {
-        errorMessage = err.message;
+      const status = err?.response?.status;
+      const detail = err?.response?.data?.detail || err?.message || 'Failed to send snapshot';
+
+      // Race condition: the shift was ended (by user or auto) while a snapshot
+      // was already in flight. Backend returns 400 "Shift non actif" — abort
+      // quietly and stop the interval so we don't keep firing.
+      if (status === 400 && typeof detail === 'string' && detail.includes('non actif')) {
+        if (snapshotTimerRef.current) {
+          clearInterval(snapshotTimerRef.current);
+          snapshotTimerRef.current = null;
+        }
+        return null;
       }
-      const error = new Error(errorMessage);
+
+      const error = new Error(detail);
       setError(error);
       console.error('Snapshot error:', error);
 
@@ -188,7 +195,7 @@ export function useShift(options: UseShiftOptions = {}) {
             console.log('🚪 App appears to be fully closed, ending shift...');
             endShiftAutomatically();
           }
-        }, 2000); // 2 second delay before considering app as "quit"
+        }, 30 * 60 * 1000); // 30 minutes — short delays caused false positives when granting GPS permissions
       }
 
       // User came back to the app - cancel the auto-end
@@ -294,16 +301,25 @@ export function useShift(options: UseShiftOptions = {}) {
     checkAndSendQueued();
   }, [activeShift]);
 
-  // Auto-start tracking when shift becomes active
+  // Auto-start tracking when a new shift becomes active; stop everything when it ends
   useEffect(() => {
-    if (activeShift && !isTracking) {
-      startShiftTracking();
+    if (!activeShift) {
+      // Shift ended (or never started) — make sure no interval / GPS keeps running
+      if (snapshotTimerRef.current) {
+        clearInterval(snapshotTimerRef.current);
+        snapshotTimerRef.current = null;
+      }
+      stopTracking();
+      return;
     }
+    startShiftTracking();
     return () => {
       if (snapshotTimerRef.current) {
         clearInterval(snapshotTimerRef.current);
+        snapshotTimerRef.current = null;
       }
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeShift?.shift_id]);
 
   // Cleanup on unmount - properly stop all tracking

@@ -46,6 +46,19 @@ def start_shift(
     return ShiftStartResponse(shift_id=shift.id, started_at=shift.started_at)
 
 
+@router.delete("/{shift_id}/cancel", status_code=200)
+def cancel_shift(shift_id: int, db: Session = Depends(get_db)):
+    shift = db.query(Shift).filter(Shift.id == shift_id).first()
+    if not shift:
+        raise HTTPException(status_code=404, detail="Shift introuvable")
+    if shift.status != "active":
+        raise HTTPException(status_code=400, detail="Impossible d'annuler un shift déjà terminé")
+
+    db.delete(shift)
+    db.commit()
+    return {"message": "Trajet annulé et supprimé"}
+
+
 @router.post("/{shift_id}/snapshot", response_model=SnapshotResponse, status_code=201)
 def create_snapshot(shift_id: int, payload: SnapshotRequest, db: Session = Depends(get_db)):
     shift = db.query(Shift).filter(Shift.id == shift_id).first()

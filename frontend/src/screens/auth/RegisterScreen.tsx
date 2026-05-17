@@ -13,7 +13,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import FadeSlideIn from '@/components/ui/FadeSlideIn';
-import { ChevronLeft } from 'lucide-react-native';
+import { ChevronLeft, Eye, EyeOff } from 'lucide-react-native';
 
 import { registerSchema, RegisterFormData } from '@/utils/validators';
 import { authApi } from '@/services';
@@ -36,6 +36,7 @@ export default function RegisterScreen() {
   const navigation = useNavigation<NavigationProp>();
   const { setDriver, setLoading, setError } = useAuthStore();
   const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const {
     control,
@@ -180,8 +181,16 @@ export default function RegisterScreen() {
                 onChangeText={onChange}
                 onBlur={onBlur}
                 error={errors.password?.message}
-                secureTextEntry
+                secureTextEntry={!showPassword}
                 autoCapitalize="none"
+                rightIcon={
+                  <Pressable onPress={() => setShowPassword(v => !v)} hitSlop={8}>
+                    {showPassword
+                      ? <EyeOff size={18} color={colors.inkSubtle} strokeWidth={1.8} />
+                      : <Eye size={18} color={colors.inkSubtle} strokeWidth={1.8} />
+                    }
+                  </Pressable>
+                }
               />
             )}
           />

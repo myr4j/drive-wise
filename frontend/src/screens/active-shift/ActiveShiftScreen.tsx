@@ -1,7 +1,9 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Alert, StyleSheet, Text, View } from 'react-native';
+import { Alert, Platform, StyleSheet, Text, View } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import FadeSlideIn from '@/components/ui/FadeSlideIn';
-import { Quote, Radio } from 'lucide-react-native';
+import { Quote, Radio, Compass } from 'lucide-react-native';
 
 import { useShiftStore, useFatigueStore } from '@/store';
 import { shiftsApi } from '@/services';
@@ -13,6 +15,7 @@ import Card from '@/components/ui/Card';
 import { useToast } from '@/components/ui/Toast';
 import { useTheme } from '@/contexts/ThemeContext';
 import { getMinutesDifference } from '@/utils/formatters';
+import type { MainTabsParamList } from '@/types/navigation';
 
 /**
  * Format minutes as a session timer: 00:42 (under an hour) or 2:14 (with hours).
@@ -30,6 +33,8 @@ function formatSessionDuration(totalMinutes: number) {
 export default function ActiveShiftScreen() {
   const { colors, fonts, spacing, typeScale } = useTheme();
   const toast = useToast();
+  const navigation =
+    useNavigation<BottomTabNavigationProp<MainTabsParamList>>();
   const { activeShift, clearActiveShift } = useShiftStore();
   const {
     currentFatigueLevel,
@@ -47,6 +52,10 @@ export default function ActiveShiftScreen() {
 
   const [timeSinceStart, setTimeSinceStart] = useState(0);
   const [isEnding, setIsEnding] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
+
+  // Diagnostic: confirm activeShift state on every render
+  console.log('🚗 ActiveShiftScreen render — activeShift:', activeShift?.shift_id ?? 'null');
 
   useEffect(() => {
     if (!activeShift) return;
@@ -58,7 +67,11 @@ export default function ActiveShiftScreen() {
   }, [activeShift]);
 
   const endShift = useCallback(async () => {
-    if (!activeShift) return;
+    console.log('🛑 endShift called, activeShift:', activeShift?.shift_id ?? 'null');
+    if (!activeShift) {
+      toast.warning('Aucune session active à terminer.');
+      return;
+    }
     setIsEnding(true);
     try {
       await shiftsApi.endShift(String(activeShift.shift_id));
@@ -66,13 +79,58 @@ export default function ActiveShiftScreen() {
       clearActiveShift();
       clearFatigueData();
     } catch (err) {
+      console.error('endShift API error:', err);
       toast.error('Impossible de terminer le trajet', 'Vérifiez la connexion.');
     } finally {
       setIsEnding(false);
     }
   }, [activeShift, clearActiveShift, clearFatigueData, toast]);
 
+  const cancelShift = useCallback(async () => {
+    if (!activeShift) return;
+    setIsCancelling(true);
+    try {
+      await shiftsApi.cancelShift(String(activeShift.shift_id));
+      toast.info('Trajet annulé', 'La session a été supprimée.');
+      clearActiveShift();
+      clearFatigueData();
+    } catch (err) {
+      console.error('cancelShift error:', err);
+      toast.error('Impossible d\'annuler le trajet', 'Vérifiez la connexion.');
+    } finally {
+      setIsCancelling(false);
+    }
+  }, [activeShift, clearActiveShift, clearFatigueData, toast]);
+
+  const handleCancelShift = useCallback(() => {
+    if (Platform.OS === 'web') {
+      const confirmed = window.confirm(
+        'Annuler le trajet ?\nCette session sera définitivement supprimée et n\'apparaîtra pas dans l\'historique.'
+      );
+      if (confirmed) cancelShift();
+      return;
+    }
+    Alert.alert(
+      'Annuler le trajet ?',
+      'Cette session sera définitivement supprimée et n\'apparaîtra pas dans l\'historique.',
+      [
+        { text: 'Continuer le trajet', style: 'cancel' },
+        { text: 'Annuler le trajet', style: 'destructive', onPress: cancelShift },
+      ]
+    );
+  }, [cancelShift]);
+
   const handleEndShift = useCallback(() => {
+    console.log('🟠 handleEndShift pressed, platform:', Platform.OS);
+    // On web, Alert.alert uses window.confirm but button onPress handlers
+    // are not reliably called — use window.confirm directly instead.
+    if (Platform.OS === 'web') {
+      const confirmed = window.confirm(
+        'Terminer la session ?\nLe suivi de fatigue s\'arrête et le trajet est archivé.'
+      );
+      if (confirmed) endShift();
+      return;
+    }
     Alert.alert(
       'Terminer la session ?',
       'Le suivi de fatigue s\'arrête et le trajet est archivé.',
@@ -82,6 +140,74 @@ export default function ActiveShiftScreen() {
       ]
     );
   }, [endShift]);
+
+  // No active shift — show clear empty state instead of broken UI
+  if (!activeShift) {
+    return (
+      <Screen
+        glow
+        edges={{ top: true, bottom: true }}
+        contentContainerStyle={{
+          flex: 1,
+          paddingHorizontal: spacing.lg,
+          paddingTop: spacing.xl,
+          paddingBottom: spacing.xl,
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <FadeSlideIn fromY={12} duration={420} style={{ alignItems: 'center' }}>
+          <View
+            style={{
+              width: 64,
+              height: 64,
+              borderRadius: 32,
+              backgroundColor: colors.accentMuted,
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginBottom: spacing.lg,
+            }}
+          >
+            <Compass size={28} color={colors.accent} strokeWidth={1.8} />
+          </View>
+          <Text
+            style={{
+              fontFamily: fonts.displayItalic,
+              fontSize: 28,
+              lineHeight: 36,
+              color: colors.ink,
+              textAlign: 'center',
+              letterSpacing: -0.3,
+            }}
+          >
+            Aucune session en cours
+          </Text>
+          <Text
+            style={{
+              ...typeScale.bodyMd,
+              color: colors.inkMuted,
+              textAlign: 'center',
+              marginTop: spacing.sm,
+              maxWidth: 280,
+            }}
+          >
+            Démarrez un trajet depuis le tableau de bord pour suivre votre
+            fatigue en temps réel.
+          </Text>
+          <View style={{ marginTop: spacing.xl, alignSelf: 'stretch' }}>
+            <Button
+              variant="primary"
+              size="lg"
+              fullWidth
+              onPress={() => navigation.navigate('Dashboard')}
+            >
+              Tableau de bord
+            </Button>
+          </View>
+        </FadeSlideIn>
+      </Screen>
+    );
+  }
 
   return (
     <Screen
@@ -233,16 +359,27 @@ export default function ActiveShiftScreen() {
         </Text>
       ) : null}
 
-      {/* --- Block 5 : end button ------------------------------------ */}
-      <FadeSlideIn duration={380} delay={420} style={{ alignItems: 'center', marginTop: 'auto', paddingTop: spacing.xl }}>
+      {/* --- Block 5 : end / cancel buttons ------------------------- */}
+      <FadeSlideIn duration={380} delay={420} style={{ marginTop: 'auto', paddingTop: spacing.xl, gap: spacing.sm }}>
         <Button
           variant="subtle"
           size="lg"
           fullWidth
           onPress={handleEndShift}
           loading={isEnding}
+          disabled={isCancelling}
         >
           Terminer la session
+        </Button>
+        <Button
+          variant="destructive"
+          size="sm"
+          fullWidth
+          onPress={handleCancelShift}
+          loading={isCancelling}
+          disabled={isEnding}
+        >
+          Annuler le trajet
         </Button>
       </FadeSlideIn>
     </Screen>

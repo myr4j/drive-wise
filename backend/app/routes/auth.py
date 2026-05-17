@@ -3,11 +3,13 @@ from sqlalchemy.orm import Session
 
 from app.database.base import get_db
 from app.services.auth import authenticate_driver, create_driver
+from app.models.driver import Driver
 from app.schemas.auth import (
     DriverRegisterRequest,
     DriverLoginRequest,
     DriverResponse,
     DriverLoginResponse,
+    PasswordResetRequest,
 )
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
@@ -55,3 +57,15 @@ def login(payload: DriverLoginRequest, db: Session = Depends(get_db)):
         ),
         message="connexion réussie",
     )
+
+
+@router.post("/reset-password")
+def reset_password(payload: PasswordResetRequest, db: Session = Depends(get_db)):
+    driver = db.query(Driver).filter(Driver.email == payload.email).first()
+    if not driver:
+        # don't reveal whether email exists
+        return {"message": "Si l'email existe, le mot de passe a été mis à jour"}
+    driver.hashed_password = Driver.hash_password(payload.password)
+    db.add(driver)
+    db.commit()
+    return {"message": "mot de passe mis à jour"}

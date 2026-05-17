@@ -95,23 +95,26 @@ export function useLocation(options: UseLocationOptions = {}) {
 
   // Start location tracking
   const startTracking = useCallback(async () => {
-    // Check permission first
-    if (!permission) {
-      const hasPermission = await requestPermission();
-      if (!hasPermission) return;
-    } else if (permission !== 'granted') {
-      await requestPermission();
-      return;
+    // Ensure permission, always continue after a successful grant
+    const alreadyGranted = permission === 'granted';
+    if (!alreadyGranted) {
+      const granted = await requestPermission();
+      if (!granted) return;
     }
 
     try {
       setIsTracking(true);
       setError(null);
 
-      // Get initial location
-      const currentLocation = await Location.getCurrentPositionAsync({
-        accuracy: enableHighAccuracy ? Location.Accuracy.High : Location.Accuracy.Balanced,
+      // Use Balanced accuracy for a faster first fix (High can timeout on Expo Go).
+      // Wrap in a manual 15-second timeout since expo-location has no built-in one.
+      const locationPromise = Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
       });
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('GPS timeout — réessayez')), 15000)
+      );
+      const currentLocation = await Promise.race([locationPromise, timeoutPromise]);
 
       const locationData: LocationData = {
         latitude: currentLocation.coords.latitude,
@@ -123,7 +126,7 @@ export function useLocation(options: UseLocationOptions = {}) {
       setLocation(locationData);
       onLocationUpdate?.(locationData);
 
-      // Start watching position
+      // Watch position with the requested accuracy for subsequent updates
       subscriptionRef.current = await Location.watchPositionAsync(
         {
           accuracy: enableHighAccuracy ? Location.Accuracy.High : Location.Accuracy.Balanced,
@@ -137,7 +140,6 @@ export function useLocation(options: UseLocationOptions = {}) {
             speed: loc.coords.speed,
             timestamp: new Date(loc.timestamp).toISOString(),
           };
-
           setLocation(newLocation);
           onLocationUpdate?.(newLocation);
         }

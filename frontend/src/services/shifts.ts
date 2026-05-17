@@ -29,6 +29,13 @@ export const shiftsApi = {
   },
 
   /**
+   * Cancel (delete) an accidentally started shift
+   */
+  cancelShift: async (shiftId: string): Promise<void> => {
+    await apiClient.delete(`/shift/${shiftId}/cancel`);
+  },
+
+  /**
    * Get current shift status
    */
   getShiftStatus: async (shiftId: string): Promise<ShiftStatus> => {

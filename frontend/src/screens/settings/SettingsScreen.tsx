@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Alert,
   Linking,
@@ -24,8 +24,10 @@ import FadeSlideIn from '@/components/ui/FadeSlideIn';
 import Screen from '@/components/layout/Screen';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
+import Input from '@/components/ui/Input';
 import { useToast } from '@/components/ui/Toast';
 import { useAuthStore } from '@/store';
+import { authApi } from '@/services';
 import {
   useTheme,
   ColorSchemePreference,
@@ -37,6 +39,10 @@ export default function SettingsScreen() {
   const { colors, fonts, spacing, typeScale, borderRadius } = useTheme();
   const { driver, clearDriver } = useAuthStore();
   const toast = useToast();
+  const [showChangePassword, setShowChangePassword] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [isChanging, setIsChanging] = useState(false);
 
   const handleLogout = () => {
     Alert.alert(
@@ -65,6 +71,33 @@ export default function SettingsScreen() {
       await Linking.openURL(url);
     } catch {
       toast.warning(fallback);
+    }
+  };
+
+  const handleChangePassword = async () => {
+    if (!newPassword) {
+      toast.warning('Entrez un nouveau mot de passe');
+      return;
+    }
+    if (newPassword.length < 6) {
+      toast.warning('Le mot de passe doit contenir au moins 6 caractères');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast.warning('Les mots de passe ne correspondent pas');
+      return;
+    }
+    setIsChanging(true);
+    try {
+      await authApi.resetPassword({ email: driver?.email ?? '', password: newPassword });
+      toast.success('Mot de passe changé');
+      setShowChangePassword(false);
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (err: any) {
+      toast.error(err?.message || 'Impossible de changer le mot de passe');
+    } finally {
+      setIsChanging(false);
     }
   };
 
@@ -106,6 +139,33 @@ export default function SettingsScreen() {
             title={driver.username}
             subtitle={driver.email}
           />
+          <SettingsRow
+            icon={<ShieldCheck size={18} color={colors.inkMuted} />}
+            title="Changer le mot de passe"
+            onPress={() => setShowChangePassword(v => !v)}
+            showChevron
+          />
+          {showChangePassword && (
+            <View style={{ paddingHorizontal: spacing.md, marginTop: spacing.sm }}>
+              <Input
+                label="Nouveau mot de passe"
+                value={newPassword}
+                onChangeText={setNewPassword}
+                secureTextEntry
+              />
+              <Input
+                label="Confirmer mot de passe"
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                secureTextEntry
+              />
+              <View style={{ marginTop: spacing.sm }}>
+                <Button variant="primary" size="md" fullWidth onPress={handleChangePassword} loading={isChanging}>
+                  Changer le mot de passe
+                </Button>
+              </View>
+            </View>
+          )}
         </Section>
       )}
 

@@ -34,6 +34,11 @@ export interface DriverLoginRequest {
   password: string;
 }
 
+export interface PasswordResetRequest {
+  email: string;
+  password: string;
+}
+
 export interface DriverResponse {
   id: number;
   email: string;

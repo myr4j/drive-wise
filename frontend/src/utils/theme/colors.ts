@@ -1,14 +1,11 @@
 /**
- * DriveWise — "Dawn Companion" palette
+ * DriveWise — "Arctic Slate" palette
  *
- * Warm, earthy, sophisticated. Inspired by dawn light, leather cockpits,
- * journals. Deliberately anti-Material-Blue.
+ * Cool, clean, professional. Blue-navy accent, slate surfaces.
+ * Two palettes (light / dark) share identical keys so the rest of the
+ * app stays palette-agnostic via useTheme().
  *
- * Two palettes (Parchment for light, Midnight for dark) share identical
- * keys so the rest of the app stays palette-agnostic via useTheme().
- *
- * Legacy alias names (primary, fatigueLow, etc.) are preserved so the
- * 21 files already importing from "@/utils/theme" keep compiling.
+ * Legacy alias names preserved for backward compatibility.
  */
 
 export type ThemePalette = {
@@ -35,7 +32,7 @@ export type ThemePalette = {
   fatigueAlert: string;
   fatigueStop: string;
 
-  // Status (folded into the warm palette)
+  // Status
   success: string;
   warning: string;
   error: string;
@@ -64,100 +61,100 @@ export type ThemePalette = {
 };
 
 const sharedNeutrals = {
-  white: '#FFFEFA',
-  black: '#0F1419',
+  white: '#F8FAFD',
+  black: '#0A1628',
 };
 
 export const lightPalette: ThemePalette = {
-  surface: '#F7F3EB',
-  surfaceElevated: '#FFFEFA',
-  surfaceSunken: '#EFEAE0',
+  surface: '#F0F4FA',
+  surfaceElevated: '#FFFFFF',
+  surfaceSunken: '#E1E8F4',
 
-  ink: '#0F1419',
-  inkMuted: '#5C6470',
-  inkSubtle: '#8B919E',
-  inkInverse: '#F7F3EB',
+  ink: '#0A1628',
+  inkMuted: '#4A5A72',
+  inkSubtle: '#8A9BB5',
+  inkInverse: '#F0F4FA',
 
-  accent: '#C9763A',
-  accentSoft: '#E8C9A8',
-  accentMuted: '#F2DFC6',
-  onAccent: '#FFFEFA',
+  accent: '#3563D4',
+  accentSoft: '#B8CCEE',
+  accentMuted: '#DAE5F8',
+  onAccent: '#FFFFFF',
 
-  fatigueRest: '#6B9080',
-  fatigueWatch: '#D4A24C',
-  fatigueAlert: '#C0633B',
-  fatigueStop: '#8B2E2E',
+  fatigueRest: '#2A9E82',
+  fatigueWatch: '#C49A2A',
+  fatigueAlert: '#C85A3A',
+  fatigueStop: '#A02828',
 
-  success: '#6B9080',
-  warning: '#D4A24C',
-  error: '#8B2E2E',
-  info: '#5C7B8A',
+  success: '#2A9E82',
+  warning: '#C49A2A',
+  error: '#A02828',
+  info: '#3563D4',
 
-  hairline: 'rgba(15, 20, 25, 0.08)',
-  hairlineStrong: 'rgba(15, 20, 25, 0.16)',
-  scrim: 'rgba(15, 20, 25, 0.45)',
+  hairline: 'rgba(10, 22, 40, 0.08)',
+  hairlineStrong: 'rgba(10, 22, 40, 0.16)',
+  scrim: 'rgba(10, 22, 40, 0.45)',
 
   // Legacy aliases ↓
-  primary: '#C9763A',
-  primaryDark: '#A35F2D',
-  primaryLight: '#E8C9A8',
-  fatigueLow: '#6B9080',
-  fatigueModerate: '#D4A24C',
-  fatigueHigh: '#C0633B',
-  fatigueCritical: '#8B2E2E',
+  primary: '#3563D4',
+  primaryDark: '#2448A8',
+  primaryLight: '#B8CCEE',
+  fatigueLow: '#2A9E82',
+  fatigueModerate: '#C49A2A',
+  fatigueHigh: '#C85A3A',
+  fatigueCritical: '#A02828',
   white: sharedNeutrals.white,
   black: sharedNeutrals.black,
-  gray: '#8B919E',
-  lightGray: '#EFEAE0',
-  darkGray: '#5C6470',
-  background: '#F7F3EB',
-  card: '#FFFEFA',
+  gray: '#8A9BB5',
+  lightGray: '#E1E8F4',
+  darkGray: '#4A5A72',
+  background: '#F0F4FA',
+  card: '#FFFFFF',
 };
 
 export const darkPalette: ThemePalette = {
-  surface: '#0E1118',
-  surfaceElevated: '#161B26',
-  surfaceSunken: '#080A0F',
+  surface: '#0C1525',
+  surfaceElevated: '#142035',
+  surfaceSunken: '#070E1A',
 
-  ink: '#F2EDE0',
-  inkMuted: '#8B919E',
-  inkSubtle: '#5C6470',
-  inkInverse: '#0F1419',
+  ink: '#DCE8F8',
+  inkMuted: '#7A96B8',
+  inkSubtle: '#445A78',
+  inkInverse: '#0C1525',
 
-  accent: '#E89B5A',
-  accentSoft: '#3A2B1E',
-  accentMuted: '#52402E',
-  onAccent: '#0F1419',
+  accent: '#6B9FE8',
+  accentSoft: '#1A2E4A',
+  accentMuted: '#1E3A5C',
+  onAccent: '#0C1525',
 
-  fatigueRest: '#88B5A1',
-  fatigueWatch: '#E6B868',
-  fatigueAlert: '#DC8056',
-  fatigueStop: '#C04848',
+  fatigueRest: '#3DBFA0',
+  fatigueWatch: '#E0B840',
+  fatigueAlert: '#E07050',
+  fatigueStop: '#C84040',
 
-  success: '#88B5A1',
-  warning: '#E6B868',
-  error: '#C04848',
-  info: '#7E9AAA',
+  success: '#3DBFA0',
+  warning: '#E0B840',
+  error: '#C84040',
+  info: '#6B9FE8',
 
-  hairline: 'rgba(242, 237, 224, 0.10)',
-  hairlineStrong: 'rgba(242, 237, 224, 0.18)',
-  scrim: 'rgba(0, 0, 0, 0.6)',
+  hairline: 'rgba(220, 232, 248, 0.10)',
+  hairlineStrong: 'rgba(220, 232, 248, 0.18)',
+  scrim: 'rgba(0, 0, 0, 0.65)',
 
   // Legacy aliases ↓
-  primary: '#E89B5A',
-  primaryDark: '#C9763A',
-  primaryLight: '#52402E',
-  fatigueLow: '#88B5A1',
-  fatigueModerate: '#E6B868',
-  fatigueHigh: '#DC8056',
-  fatigueCritical: '#C04848',
+  primary: '#6B9FE8',
+  primaryDark: '#3563D4',
+  primaryLight: '#1E3A5C',
+  fatigueLow: '#3DBFA0',
+  fatigueModerate: '#E0B840',
+  fatigueHigh: '#E07050',
+  fatigueCritical: '#C84040',
   white: sharedNeutrals.white,
   black: sharedNeutrals.black,
-  gray: '#5C6470',
-  lightGray: '#161B26',
-  darkGray: '#8B919E',
-  background: '#0E1118',
-  card: '#161B26',
+  gray: '#445A78',
+  lightGray: '#142035',
+  darkGray: '#7A96B8',
+  background: '#0C1525',
+  card: '#142035',
 };
 
 /**

@@ -49,22 +49,29 @@ export default function DashboardScreen() {
   const loadData = useCallback(async () => {
     if (!driver) return;
     try {
-      const [statsData, shiftsData] = await Promise.all([
+      const [statsData, shiftsData, activeShifts] = await Promise.all([
         shiftsApi.getDriverStats(driver.id),
         shiftsApi.listShifts({ driver_id: driver.id, page: 1, per_page: 3 }),
+        shiftsApi.listShifts({ driver_id: driver.id, status: 'active', per_page: 1 }),
       ]);
       setStats({
         total_shifts: statsData.total_shifts,
         total_driving_hours: statsData.total_driving_hours,
       });
       setRecentShifts(shiftsData.shifts);
+
+      // Restore any orphaned active shift so the user can resume / end it
+      const orphan = activeShifts.shifts[0];
+      if (orphan && !activeShift) {
+        setActiveShift({ shift_id: orphan.id, started_at: orphan.started_at });
+      }
     } catch (err) {
       // surface but don't block the screen
       toast.error('Données indisponibles', 'Vérifiez la connexion.');
     } finally {
       setIsFirstLoad(false);
     }
-  }, [driver, toast]);
+  }, [driver, toast, activeShift, setActiveShift]);
 
   useFocusEffect(
     useCallback(() => {
@@ -82,6 +89,21 @@ export default function DashboardScreen() {
     if (!driver) return;
     setIsStarting(true);
     try {
+      // Guard against orphan shifts that would 409 the start endpoint:
+      // if one exists for this driver, resume it instead of creating a new one.
+      const existing = await shiftsApi.listShifts({
+        driver_id: driver.id,
+        status: 'active',
+        per_page: 1,
+      });
+      const orphan = existing.shifts[0];
+      if (orphan) {
+        setActiveShift({ shift_id: orphan.id, started_at: orphan.started_at });
+        toast.info('Reprise de la session en cours', 'Session précédente non terminée.');
+        navigation.navigate('ActiveShift');
+        return;
+      }
+
       const shift = await shiftsApi.startShift(driver.id);
       setActiveShift(shift);
       navigation.navigate('ActiveShift');

@@ -28,3 +28,8 @@ class DriverResponse(BaseModel):
 class DriverLoginResponse(BaseModel):
     driver: DriverResponse
     message: str = "connexion réussie"
+
+
+class PasswordResetRequest(BaseModel):
+    email: EmailStr = Field(..., description="email du chauffeur")
+    password: str = Field(..., min_length=6, description="nouveau mot de passe (min 6 caractères)")
