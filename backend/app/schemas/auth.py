@@ -20,7 +20,9 @@ class DriverResponse(BaseModel):
     username: str
     is_active: bool
     created_at: datetime
-    
+    consent_at: Optional[datetime] = None
+    consent_version: Optional[str] = None
+
     class Config:
         from_attributes = True
 

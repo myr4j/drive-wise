@@ -47,16 +47,26 @@ def login(payload: DriverLoginRequest, db: Session = Depends(get_db)):
             headers={"WWW-Authenticate": "Basic"},
         )
     
+    db.refresh(driver)  # force le rechargement de tous les attributs depuis la DB
     return DriverLoginResponse(
-        driver=DriverResponse(
-            id=driver.id,
-            email=driver.email,
-            username=driver.username,
-            is_active=driver.is_active,
-            created_at=driver.created_at,
-        ),
+        driver=DriverResponse.model_validate(driver),
         message="connexion réussie",
     )
+
+
+@router.get("/debug-consent/{email}")
+def debug_consent(email: str, db: Session = Depends(get_db)):
+    from sqlalchemy import text
+    # Via ORM
+    driver = db.query(Driver).filter(Driver.email == email).first()
+    orm_consent = driver.consent_at if driver else "NOT FOUND"
+    # Via SQL brut
+    raw = db.execute(text("SELECT consent_at, consent_version FROM drivers WHERE email=:e"), {"e": email}).fetchone()
+    return {
+        "orm_consent_at": str(orm_consent),
+        "raw_consent_at": str(raw[0]) if raw else None,
+        "driver_columns": [str(c.key) for c in Driver.__table__.columns],
+    }
 
 
 @router.post("/reset-password")

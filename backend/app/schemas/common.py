@@ -19,3 +19,7 @@ class Suggestion(BaseModel):
     delivery: str = Field(
         description="Canal : none, in_app, push_soft, push_strong"
     )
+    is_end_of_day: bool = Field(
+        default=False,
+        description="Recommandation de fin de journee (vs simple pause)"
+    )

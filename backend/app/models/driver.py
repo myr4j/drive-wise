@@ -20,6 +20,10 @@ class Driver(Base):
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # consentement RGPD
+    consent_at = Column(DateTime, nullable=True)
+    consent_version = Column(String(20), nullable=True)
     
     # relation avec les shifts
     shifts = relationship("Shift", back_populates="driver", cascade="all, delete-orphan")

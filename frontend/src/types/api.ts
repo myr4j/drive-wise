@@ -20,6 +20,8 @@ export interface Driver {
   is_active: boolean;
   created_at: string | Date;
   updated_at?: string | Date;
+  consent_at?: string | Date | null;
+  consent_version?: string | null;
 }
 
 // Auth request/response types
@@ -46,6 +48,8 @@ export interface DriverResponse {
   is_active: boolean;
   created_at: string | Date;
   updated_at?: string | Date;
+  consent_at?: string | Date | null;
+  consent_version?: string | null;
 }
 
 export interface DriverLoginResponse {
@@ -143,6 +147,19 @@ export interface Suggestion {
   fatigue_level: FatigueLevel;
   message: string;
   delivery: string; // 'none', 'in_app', 'push_soft', 'push_strong'
+  is_end_of_day?: boolean;
+}
+
+export interface BreakStartResponse {
+  break_id: number;
+  started_at: string;
+}
+
+export interface BreakEndResponse {
+  break_id: number;
+  started_at: string;
+  ended_at: string;
+  duration_min: number;
 }
 
 export interface SnapshotResponse {

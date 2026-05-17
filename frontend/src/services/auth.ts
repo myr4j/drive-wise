@@ -27,6 +27,21 @@ export const authApi = {
     const response = await apiClient.post<{ message: string }>('/auth/reset-password', data);
     return response.data;
   },
+
+  acceptConsent: async (driverId: number): Promise<{ message: string; consent_at: string; consent_version: string }> => {
+    const response = await apiClient.post(`/driver/me/consent?driver_id=${driverId}`);
+    return response.data;
+  },
+
+  exportData: async (driverId: number): Promise<Record<string, unknown>> => {
+    const response = await apiClient.get(`/driver/me/export?driver_id=${driverId}`);
+    return response.data;
+  },
+
+  deleteAccount: async (driverId: number): Promise<{ message: string }> => {
+    const response = await apiClient.delete(`/driver/me?driver_id=${driverId}`);
+    return response.data;
+  },
 };
 
 export default authApi;

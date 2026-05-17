@@ -18,6 +18,7 @@ import {
   Smartphone,
   Info,
   User,
+  Trash2,
 } from 'lucide-react-native';
 import FadeSlideIn from '@/components/ui/FadeSlideIn';
 
@@ -59,10 +60,47 @@ export default function SettingsScreen() {
     );
   };
 
-  const handleExportData = () => {
-    toast.info(
-      "L'export d'historique arrive dans une prochaine version.",
-      'Bientôt disponible'
+  const [isExporting, setIsExporting] = useState(false);
+
+  const handleExportData = async () => {
+    if (!driver) return;
+    setIsExporting(true);
+    try {
+      const data = await authApi.exportData(driver.id);
+      const json = JSON.stringify(data, null, 2);
+      // On affiche un résumé — un vrai téléchargement nécessite expo-file-system
+      toast.success(
+        `${(json.length / 1024).toFixed(1)} Ko de données prêtes. Intégration fichier à venir.`,
+        'Export réussi'
+      );
+    } catch {
+      toast.error('Impossible d\'exporter les données.');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      'Supprimer mon compte',
+      'Cette action est irréversible. Votre compte sera anonymisé et vous serez déconnecté.',
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Supprimer',
+          style: 'destructive',
+          onPress: async () => {
+            if (!driver) return;
+            try {
+              await authApi.deleteAccount(driver.id);
+              toast.success('Compte supprimé');
+            } catch {
+              // Si erreur réseau, on déconnecte quand même côté front
+            }
+            clearDriver();
+          },
+        },
+      ]
     );
   };
 
@@ -187,10 +225,10 @@ export default function SettingsScreen() {
       <Section title="Données et confidentialité">
         <SettingsRow
           icon={<Download size={18} color={colors.inkMuted} />}
-          title="Exporter mes données"
-          subtitle="Télécharger l'historique"
-          onPress={handleExportData}
-          showChevron
+          title={isExporting ? 'Export en cours…' : 'Exporter mes données'}
+          subtitle="Télécharger l'historique complet"
+          onPress={isExporting ? undefined : handleExportData}
+          showChevron={!isExporting}
         />
         <Divider />
         <SettingsRow
@@ -215,6 +253,15 @@ export default function SettingsScreen() {
             )
           }
           showChevron
+        />
+        <Divider />
+        <SettingsRow
+          icon={<Trash2 size={18} color={colors.fatigueStop} />}
+          title="Supprimer mon compte"
+          subtitle="Action irréversible"
+          onPress={handleDeleteAccount}
+          showChevron
+          danger
         />
       </Section>
 
@@ -305,12 +352,14 @@ function SettingsRow({
   subtitle,
   onPress,
   showChevron,
+  danger,
 }: {
   icon?: React.ReactNode;
   title: string;
   subtitle?: string;
   onPress?: () => void;
   showChevron?: boolean;
+  danger?: boolean;
 }) {
   const { colors, fonts, spacing, typeScale } = useTheme();
 
@@ -322,7 +371,7 @@ function SettingsRow({
         </View>
       )}
       <View style={{ flex: 1 }}>
-        <Text style={{ ...typeScale.bodyMd, color: colors.ink, fontFamily: fonts.bodyMedium }}>
+        <Text style={{ ...typeScale.bodyMd, color: danger ? colors.fatigueStop : colors.ink, fontFamily: fonts.bodyMedium }}>
           {title}
         </Text>
         {subtitle && (

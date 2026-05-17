@@ -3,7 +3,8 @@ import { StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import FadeSlideIn from '@/components/ui/FadeSlideIn';
-import { ArrowRight, Sunrise } from 'lucide-react-native';
+import { ArrowRight, Sunrise, Lightbulb } from 'lucide-react-native';
+import { getTodayPreShiftTip } from '@/content/advice';
 
 import { useAuthStore, useShiftStore } from '@/store';
 import { shiftsApi } from '@/services';
@@ -274,6 +275,38 @@ export default function DashboardScreen() {
           </Card>
         )}
       </FadeSlideIn>
+
+      {/* --- Conseil pré-session (uniquement si pas de trajet actif) --- */}
+      {!activeShift && (
+        <FadeSlideIn fromY={8} delay={120}>
+          {(() => {
+            const tip = getTodayPreShiftTip();
+            return (
+              <View
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'flex-start',
+                  gap: spacing.sm,
+                  paddingHorizontal: spacing.md,
+                  paddingVertical: spacing.md,
+                  backgroundColor: colors.surfaceSunken,
+                  borderRadius: 12,
+                }}
+              >
+                <Lightbulb size={16} color={colors.inkSubtle} strokeWidth={1.8} style={{ marginTop: 2 }} />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ ...typeScale.caption, color: colors.inkMuted, marginBottom: 2 }}>
+                    CONSEIL DU JOUR
+                  </Text>
+                  <Text style={{ ...typeScale.bodySm, color: colors.inkSubtle, lineHeight: 18 }}>
+                    {tip.text}
+                  </Text>
+                </View>
+              </View>
+            );
+          })()}
+        </FadeSlideIn>
+      )}
 
       {/* --- Stats grid --------------------------------------------- */}
       <FadeSlideIn fromY={12} delay={160}>

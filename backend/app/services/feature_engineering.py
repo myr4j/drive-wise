@@ -13,7 +13,8 @@ BREAK_MIN_DURATION_MIN = 2.0  # minimum stop duration to count as break
 def compute_features(
     shift: Shift,
     current_snapshot: Snapshot,
-    all_snapshots: Optional[List[Snapshot]] = None
+    all_snapshots: Optional[List[Snapshot]] = None,
+    manual_breaks: Optional[List] = None,
 ) -> dict:
     # retrieve snapshots
     if all_snapshots is None:
@@ -37,11 +38,25 @@ def compute_features(
     active_driving_h, total_break_min, break_count = compute_driving_and_break_metrics(
         all_snapshots, shift.started_at
     )
-    
-    # time_since_last_break_min
+
+    # time_since_last_break_min (inferred from speed)
     time_since_last_break_min = compute_time_since_last_break(
         all_snapshots, current_time, shift.started_at
     )
+
+    # merge manual break data if provided
+    if manual_breaks:
+        completed = [b for b in manual_breaks if b.ended_at is not None]
+        if completed:
+            manual_total_min = sum(
+                (b.ended_at - b.started_at).total_seconds() / 60 for b in completed
+            )
+            total_break_min += manual_total_min
+            break_count += len(completed)
+
+            last_manual_end = max(b.ended_at for b in completed)
+            time_since_manual = (current_time - last_manual_end).total_seconds() / 60
+            time_since_last_break_min = min(time_since_last_break_min, time_since_manual)
     
     # driving_ratio
     if shift_duration_h > 0:

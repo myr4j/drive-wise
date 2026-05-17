@@ -7,6 +7,8 @@ import {
   ShiftsListResponse,
   DriverStatsResponse,
   FeatureImportanceResponse,
+  BreakStartResponse,
+  BreakEndResponse,
 } from '@/types/api';
 
 export const shiftsApi = {
@@ -88,6 +90,22 @@ export const shiftsApi = {
    */
   getFeatureImportance: async (): Promise<FeatureImportanceResponse> => {
     const response = await apiClient.get<FeatureImportanceResponse>('/shift/ml/feature-importance');
+    return response.data;
+  },
+
+  /**
+   * Start a manual break for an active shift
+   */
+  startBreak: async (shiftId: string): Promise<BreakStartResponse> => {
+    const response = await apiClient.post<BreakStartResponse>(`/shift/${shiftId}/break/start`);
+    return response.data;
+  },
+
+  /**
+   * End the current manual break
+   */
+  endBreak: async (shiftId: string): Promise<BreakEndResponse> => {
+    const response = await apiClient.post<BreakEndResponse>(`/shift/${shiftId}/break/end`);
     return response.data;
   },
 

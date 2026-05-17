@@ -57,7 +57,7 @@ apiClient.interceptors.response.use(
     if (error.response) {
       const status = error.response.status;
       const data = error.response.data;
-      const detail = data?.detail || 'An unexpected error occurred';
+      const detail = (data as any)?.detail || 'An unexpected error occurred';
 
       // Handle specific error codes
       switch (status) {

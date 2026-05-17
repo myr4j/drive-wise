@@ -7,6 +7,21 @@ from datetime import datetime
 from app.database.base import Base
 
 
+class Break(Base):
+    __tablename__ = "breaks"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    shift_id = Column(Integer, ForeignKey("shifts.id"), nullable=False)
+    started_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    ended_at = Column(DateTime, nullable=True)
+    source = Column(String(10), nullable=False, default="manual")  # 'manual' | 'auto'
+
+    shift = relationship("Shift", back_populates="breaks")
+
+    def __repr__(self):
+        return f"<Break id={self.id} shift={self.shift_id} ended={self.ended_at is not None}>"
+
+
 class Shift(Base):
     __tablename__ = "shifts"
 
@@ -34,6 +49,12 @@ class Shift(Base):
         back_populates="shift",
         cascade="all, delete-orphan",
         order_by="Snapshot.timestamp"
+    )
+    breaks = relationship(
+        "Break",
+        back_populates="shift",
+        cascade="all, delete-orphan",
+        order_by="Break.started_at"
     )
 
     def __repr__(self):

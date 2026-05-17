@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { FatigueLevel, SnapshotResponse, ShapExplanation } from '@/types/api';
+import { FatigueLevel, SnapshotResponse, ShapExplanation, Suggestion } from '@/types/api';
 
 interface FatigueHistoryPoint {
   timestamp: string;
@@ -13,14 +13,14 @@ interface FatigueState {
   fatigueHistory: FatigueHistoryPoint[];
   lastSnapshot: SnapshotResponse | null;
   lastShapExplanation: ShapExplanation | null;
-  suggestion: { message: string; delivery: string } | null;
+  suggestion: Suggestion | null;
   isLoading: boolean;
   error: string | null;
 
   // Actions
   updateFatigue: (snapshot: SnapshotResponse) => void;
   clearFatigueData: () => void;
-  setSuggestion: (suggestion: { message: string; delivery: string } | null) => void;
+  setSuggestion: (suggestion: Suggestion | null) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
 }

@@ -16,7 +16,7 @@ import {
   LucideIcon,
 } from 'lucide-react-native';
 
-import { LoginScreen, RegisterScreen } from '@/screens/auth';
+import { LoginScreen, RegisterScreen, ConsentScreen } from '@/screens/auth';
 import { DashboardScreen } from '@/screens/dashboard';
 import { ActiveShiftScreen } from '@/screens/active-shift';
 import { HistoryScreen } from '@/screens/history';
@@ -153,7 +153,9 @@ function MainTabsNavigator() {
 
 export default function AppNavigator() {
   const { colors, isDark } = useTheme();
-  const { isAuthenticated, isLoading } = useAuthStore();
+  const { isAuthenticated, isLoading, hasConsented } = useAuthStore();
+  const needsConsent = isAuthenticated && !hasConsented;
+  console.log('[NAV] isAuthenticated:', isAuthenticated, '| hasConsented:', hasConsented, '| needsConsent:', needsConsent);
 
   if (isLoading) {
     return (
@@ -192,21 +194,29 @@ export default function AppNavigator() {
     <NavigationContainer theme={navTheme}>
       <RootStack.Navigator screenOptions={stackScreenOptions}>
         {isAuthenticated ? (
-          <>
+          needsConsent ? (
             <RootStack.Screen
-              name="MainTabs"
-              component={MainTabsNavigator}
+              name="Consent"
+              component={ConsentScreen}
               options={{ animation: 'fade' }}
             />
-            <RootStack.Screen
-              name="ShiftDetail"
-              component={ShiftDetailScreen}
-              options={{
-                presentation: 'modal',
-                animation: 'slide_from_bottom',
-              }}
-            />
-          </>
+          ) : (
+            <>
+              <RootStack.Screen
+                name="MainTabs"
+                component={MainTabsNavigator}
+                options={{ animation: 'fade' }}
+              />
+              <RootStack.Screen
+                name="ShiftDetail"
+                component={ShiftDetailScreen}
+                options={{
+                  presentation: 'modal',
+                  animation: 'slide_from_bottom',
+                }}
+              />
+            </>
+          )
         ) : (
           <>
             <RootStack.Screen name="Login" component={LoginScreen} />

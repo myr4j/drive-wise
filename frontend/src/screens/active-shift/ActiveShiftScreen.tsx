@@ -3,7 +3,7 @@ import { Alert, Platform, StyleSheet, Text, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import FadeSlideIn from '@/components/ui/FadeSlideIn';
-import { Quote, Radio, Compass } from 'lucide-react-native';
+import { Quote, Radio, Compass, Coffee, Sunset } from 'lucide-react-native';
 
 import { useShiftStore, useFatigueStore } from '@/store';
 import { shiftsApi } from '@/services';
@@ -35,7 +35,7 @@ export default function ActiveShiftScreen() {
   const toast = useToast();
   const navigation =
     useNavigation<BottomTabNavigationProp<MainTabsParamList>>();
-  const { activeShift, clearActiveShift } = useShiftStore();
+  const { activeShift, clearActiveShift, isOnBreak, breakStartedAt, startBreak: storeStartBreak, endBreak: storeEndBreak } = useShiftStore();
   const {
     currentFatigueLevel,
     currentFatigueScore,
@@ -51,8 +51,10 @@ export default function ActiveShiftScreen() {
   } = useShift({ snapshotInterval: 30000, enableBackgroundTracking: true });
 
   const [timeSinceStart, setTimeSinceStart] = useState(0);
+  const [breakMinutes, setBreakMinutes] = useState(0);
   const [isEnding, setIsEnding] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
+  const [isTogglingBreak, setIsTogglingBreak] = useState(false);
 
   // Diagnostic: confirm activeShift state on every render
   console.log('🚗 ActiveShiftScreen render — activeShift:', activeShift?.shift_id ?? 'null');
@@ -62,9 +64,12 @@ export default function ActiveShiftScreen() {
     setTimeSinceStart(getMinutesDifference(activeShift.started_at));
     const interval = setInterval(() => {
       setTimeSinceStart(getMinutesDifference(activeShift.started_at));
+      if (breakStartedAt) {
+        setBreakMinutes(getMinutesDifference(breakStartedAt));
+      }
     }, 1000);
     return () => clearInterval(interval);
-  }, [activeShift]);
+  }, [activeShift, breakStartedAt]);
 
   const endShift = useCallback(async () => {
     console.log('🛑 endShift called, activeShift:', activeShift?.shift_id ?? 'null');
@@ -101,6 +106,27 @@ export default function ActiveShiftScreen() {
       setIsCancelling(false);
     }
   }, [activeShift, clearActiveShift, clearFatigueData, toast]);
+
+  const handleToggleBreak = useCallback(async () => {
+    if (!activeShift) return;
+    setIsTogglingBreak(true);
+    try {
+      if (isOnBreak) {
+        const result = await shiftsApi.endBreak(String(activeShift.shift_id));
+        storeEndBreak();
+        toast.success(`Pause terminée (${result.duration_min.toFixed(0)} min)`, 'Bon courage !');
+      } else {
+        const result = await shiftsApi.startBreak(String(activeShift.shift_id));
+        storeStartBreak(result.break_id, result.started_at);
+        setBreakMinutes(0);
+        toast.info('Pause démarrée', 'Reposez-vous bien.');
+      }
+    } catch {
+      toast.error(isOnBreak ? 'Impossible de terminer la pause' : 'Impossible de démarrer la pause');
+    } finally {
+      setIsTogglingBreak(false);
+    }
+  }, [activeShift, isOnBreak, storeStartBreak, storeEndBreak, toast]);
 
   const handleCancelShift = useCallback(() => {
     if (Platform.OS === 'web') {
@@ -268,39 +294,26 @@ export default function ActiveShiftScreen() {
       {/* --- Block 3 : suggestion ------------------------------------- */}
       {suggestion ? (
         <FadeSlideIn fromY={12} duration={420} delay={220} style={{ marginBottom: spacing.xl }}>
-          <Card variant="accent" style={{ paddingVertical: spacing.lg }}>
-            <View
-              style={{
-                flexDirection: 'row',
-                alignItems: 'flex-start',
-                gap: spacing.sm,
-              }}
-            >
-              <Quote
-                size={18}
-                color={colors.accent}
-                strokeWidth={2}
-                style={{ marginTop: 4 }}
-              />
+          <Card
+            variant="accent"
+            style={{
+              paddingVertical: spacing.lg,
+              borderColor: suggestion.is_end_of_day ? colors.fatigueStop : undefined,
+              borderWidth: suggestion.is_end_of_day ? 1 : 0,
+            }}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm }}>
+              {suggestion.is_end_of_day ? (
+                <Sunset size={18} color={colors.fatigueStop} strokeWidth={2} style={{ marginTop: 4 }} />
+              ) : (
+                <Quote size={18} color={colors.accent} strokeWidth={2} style={{ marginTop: 4 }} />
+              )}
               <View style={{ flex: 1 }}>
-                <Text
-                  style={{
-                    fontFamily: fonts.displayItalic,
-                    fontSize: 18,
-                    lineHeight: 26,
-                    color: colors.ink,
-                  }}
-                >
+                <Text style={{ fontFamily: fonts.displayItalic, fontSize: 18, lineHeight: 26, color: colors.ink }}>
                   {suggestion.message}
                 </Text>
-                <Text
-                  style={{
-                    ...typeScale.caption,
-                    color: colors.inkMuted,
-                    marginTop: spacing.sm,
-                  }}
-                >
-                  DriveWise · Suggestion personnalisée
+                <Text style={{ ...typeScale.caption, color: colors.inkMuted, marginTop: spacing.sm }}>
+                  {suggestion.is_end_of_day ? 'DriveWise · Recommandation fin de journée' : 'DriveWise · Suggestion personnalisée'}
                 </Text>
               </View>
             </View>
@@ -358,6 +371,42 @@ export default function ActiveShiftScreen() {
           GPS : {typeof locationError === 'string' ? locationError : locationError?.message}
         </Text>
       ) : null}
+
+      {/* --- Block 4b : break button --------------------------------- */}
+      <FadeSlideIn fromY={8} duration={360} delay={360} style={{ marginBottom: spacing.lg }}>
+        {isOnBreak ? (
+          <View style={{ alignItems: 'center', gap: spacing.sm }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+              <Coffee size={15} color={colors.fatigueWatch} strokeWidth={2} />
+              <Text style={{ ...typeScale.bodyMd, color: colors.fatigueWatch, fontFamily: fonts.bodyMedium }}>
+                En pause · {breakMinutes < 60
+                  ? `${breakMinutes} min`
+                  : `${Math.floor(breakMinutes / 60)}h ${breakMinutes % 60}min`}
+              </Text>
+            </View>
+            <Button
+              variant="subtle"
+              size="md"
+              fullWidth
+              onPress={handleToggleBreak}
+              loading={isTogglingBreak}
+            >
+              Reprendre la session
+            </Button>
+          </View>
+        ) : (
+          <Button
+            variant="ghost"
+            size="md"
+            fullWidth
+            onPress={handleToggleBreak}
+            loading={isTogglingBreak}
+            icon={<Coffee size={15} color={colors.inkMuted} strokeWidth={2} />}
+          >
+            Déclarer une pause
+          </Button>
+        )}
+      </FadeSlideIn>
 
       {/* --- Block 5 : end / cancel buttons ------------------------- */}
       <FadeSlideIn duration={380} delay={420} style={{ marginTop: 'auto', paddingTop: spacing.xl, gap: spacing.sm }}>

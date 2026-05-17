@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from typing import Optional, List
 
 from app.database.base import get_db
-from app.models.shift import Shift, Snapshot
+from app.models.shift import Shift, Snapshot, Break
 from app.models.driver import Driver
 from app.schemas.shift import ShiftStartRequest, ShiftStartResponse, ShiftEndResponse
 from app.schemas.snapshot import SnapshotRequest, SnapshotResponse
@@ -80,7 +80,8 @@ def create_snapshot(shift_id: int, payload: SnapshotRequest, db: Session = Depen
 
     # compute features from shift history and current snapshot
     all_snapshots = db.query(Snapshot).filter(Snapshot.shift_id == shift_id).all()
-    features = compute_features(shift, snapshot, all_snapshots)
+    manual_breaks = db.query(Break).filter(Break.shift_id == shift_id).all()
+    features = compute_features(shift, snapshot, all_snapshots, manual_breaks)
 
     # save computed features to snapshot for later ML prediction
     snapshot.shift_duration_h = features["shift_duration_h"]
@@ -105,14 +106,18 @@ def create_snapshot(shift_id: int, payload: SnapshotRequest, db: Session = Depen
 
     # generate suggestion with anti-harassment logic
     suggestion = None
+    is_end_of_day = (
+        fatigue_level.value == "critical"
+        and features.get("shift_duration_h", 0) >= 6.0
+    )
     if should_generate_suggestion(fatigue_level, shift.last_suggestion_time, shift.last_fatigue_level):
-        suggestion = generate_suggestion(fatigue_score, fatigue_level, features)
+        suggestion = generate_suggestion(fatigue_score, fatigue_level, features, is_end_of_day=is_end_of_day)
         if suggestion:
             # save suggestion to snapshot
             snapshot.suggestion_given = 1
             snapshot.suggestion_message = suggestion.message
             snapshot.suggestion_delivery = suggestion.delivery
-            
+
             # update shift tracking
             shift.last_suggestion_time = datetime.utcnow()
             shift.last_fatigue_level = fatigue_level.value
@@ -485,6 +490,45 @@ def get_driver_stats(
         fatigue_distribution=fatigue_distribution,
         fatigue_trend_7_days=fatigue_trend,
     )
+
+
+@router.post("/{shift_id}/break/start")
+def start_break(shift_id: int, db: Session = Depends(get_db)):
+    shift = db.query(Shift).filter(Shift.id == shift_id, Shift.status == "active").first()
+    if not shift:
+        raise HTTPException(status_code=404, detail="Shift actif introuvable")
+
+    active_break = db.query(Break).filter(
+        Break.shift_id == shift_id, Break.ended_at.is_(None)
+    ).first()
+    if active_break:
+        raise HTTPException(status_code=409, detail="Une pause est déjà en cours")
+
+    new_break = Break(shift_id=shift_id, started_at=datetime.utcnow(), source="manual")
+    db.add(new_break)
+    db.commit()
+    db.refresh(new_break)
+    return {"break_id": new_break.id, "started_at": new_break.started_at.isoformat()}
+
+
+@router.post("/{shift_id}/break/end")
+def end_break(shift_id: int, db: Session = Depends(get_db)):
+    active_break = db.query(Break).filter(
+        Break.shift_id == shift_id, Break.ended_at.is_(None)
+    ).first()
+    if not active_break:
+        raise HTTPException(status_code=404, detail="Aucune pause active")
+
+    active_break.ended_at = datetime.utcnow()
+    db.commit()
+    db.refresh(active_break)
+    duration_min = (active_break.ended_at - active_break.started_at).total_seconds() / 60
+    return {
+        "break_id": active_break.id,
+        "started_at": active_break.started_at.isoformat(),
+        "ended_at": active_break.ended_at.isoformat(),
+        "duration_min": round(duration_min, 1),
+    }
 
 
 @router.post("/cleanup/orphaned")

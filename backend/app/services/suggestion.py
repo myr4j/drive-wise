@@ -26,6 +26,8 @@ FALLBACK_MESSAGES = {
     FatigueLevel.CRITICAL: "⚠️ Fatigue critique ! Arrêtez-vous immédiatement pour votre sécurité.",
 }
 
+END_OF_DAY_FALLBACK = "Longue journée détectée. Pensez à terminer votre service et à vous reposer."
+
 
 # Ordre des niveaux de fatigue (pour détecter l'escalation)
 FATIGUE_LEVEL_ORDER = ["low", "moderate", "high", "critical"]
@@ -146,30 +148,35 @@ Réponds UNIQUEMENT avec le message, rien d'autre."""
 def generate_suggestion(
     fatigue_score: float,
     fatigue_level: FatigueLevel,
-    features: dict
+    features: dict,
+    is_end_of_day: bool = False,
 ) -> Optional[Suggestion]:
 
     # no suggestion needed for low fatigue
     if fatigue_score < 0.3:
         return None
-    
+
     delivery = get_delivery_channel(fatigue_score)
-    
+
     # check if API key is configured
     if not GROQ_API_KEY:
         logger.warning("GROQ_API_KEY not configured, using fallback message")
+        msg = END_OF_DAY_FALLBACK if is_end_of_day else FALLBACK_MESSAGES[fatigue_level]
         return Suggestion(
             fatigue_level=fatigue_level,
-            message=FALLBACK_MESSAGES[fatigue_level],
+            message=msg,
             delivery=delivery,
+            is_end_of_day=is_end_of_day,
         )
     
     try:
         # initialize Groq client
         client = Groq(api_key=GROQ_API_KEY)
-        
-        # build prompt
+
+        # build prompt (end-of-day variant adds specific context)
         prompt = build_prompt(fatigue_score, fatigue_level, features)
+        if is_end_of_day:
+            prompt += "\n\nIMPORTANT: Cette session dure depuis plus de 6h avec une fatigue critique. Recommande explicitement de terminer la journée de travail."
         
         # call LLM with timeout
         response = client.chat.completions.create(
@@ -202,13 +209,15 @@ def generate_suggestion(
             fatigue_level=fatigue_level,
             message=message,
             delivery=delivery,
+            is_end_of_day=is_end_of_day,
         )
-        
+
     except Exception as e:
         logger.error(f"Groq API error: {e}, using fallback message")
-        # return fallback message on error
+        msg = END_OF_DAY_FALLBACK if is_end_of_day else FALLBACK_MESSAGES[fatigue_level]
         return Suggestion(
             fatigue_level=fatigue_level,
-            message=FALLBACK_MESSAGES[fatigue_level],
+            message=msg,
             delivery=delivery,
+            is_end_of_day=is_end_of_day,
         )
