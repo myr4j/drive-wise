@@ -1,18 +1,18 @@
-import React from 'react';
-import { StyleSheet, View } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { Animated, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
 import {
   createNativeStackNavigator,
   NativeStackNavigationOptions,
 } from '@react-navigation/native-stack';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createBottomTabNavigator, BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import {
   Home,
   Car,
   History as HistoryIcon,
   BarChart3,
-  Settings as SettingsIcon,
+  MessageSquare,
   LucideIcon,
 } from 'lucide-react-native';
 
@@ -23,6 +23,7 @@ import { ActiveShiftScreen } from '@/screens/active-shift';
 import { HistoryScreen } from '@/screens/history';
 import ShiftDetailScreen from '@/screens/history/ShiftDetailScreen';
 import { StatsScreen } from '@/screens/stats';
+import { ChatScreen } from '@/screens/chat';
 import { SettingsScreen } from '@/screens/settings';
 import { useAuthStore, useNotificationStore } from '@/store';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -41,6 +42,10 @@ type ExtendedRootStackParamList = RootStackParamList & {
 const RootStack = createNativeStackNavigator<ExtendedRootStackParamList>();
 const MainTabs = createBottomTabNavigator<MainTabsParamList>();
 
+const BAR_HEIGHT = 64;
+const BAR_RADIUS = 22;
+const PILL_INSET = 5;
+
 function TabIcon({
   Icon,
   color,
@@ -50,54 +55,156 @@ function TabIcon({
   color: string;
   focused: boolean;
 }) {
-  // Tiny pop when focused: subtle vertical lift via marginBottom shift
+  const scale = useRef(new Animated.Value(focused ? 1.18 : 1)).current;
+
+  useEffect(() => {
+    Animated.spring(scale, {
+      toValue: focused ? 1.18 : 1,
+      stiffness: 340,
+      damping: 18,
+      mass: 0.9,
+      useNativeDriver: true,
+    }).start();
+  }, [focused]);
+
+  return (
+    <Animated.View style={{ transform: [{ scale }] }}>
+      <Icon size={21} color={color} strokeWidth={focused ? 2.3 : 1.6} />
+    </Animated.View>
+  );
+}
+
+function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
+  const { colors, fonts } = useTheme();
+  const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+
+  const SIDE = 16;
+  const tabCount = state.routes.length;
+  const tabW = (width - SIDE * 2) / tabCount;
+
+  const slideX = useRef(
+    new Animated.Value(state.index * tabW + PILL_INSET)
+  ).current;
+
+  useEffect(() => {
+    Animated.spring(slideX, {
+      toValue: state.index * tabW + PILL_INSET,
+      stiffness: 380,
+      damping: 30,
+      mass: 0.85,
+      useNativeDriver: true,
+    }).start();
+  }, [state.index, tabW]);
+
+  const centerIdx = Math.floor(tabCount / 2);
+
   return (
     <View
       style={{
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingTop: 4,
+        backgroundColor: colors.surfaceElevated,
+        borderTopLeftRadius: BAR_RADIUS,
+        borderTopRightRadius: BAR_RADIUS,
+        paddingHorizontal: SIDE,
+        paddingBottom: insets.bottom,
+        // top shadow
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: -4 },
+        shadowOpacity: 0.07,
+        shadowRadius: 16,
+        elevation: 20,
+        borderTopWidth: StyleSheet.hairlineWidth,
+        borderTopColor: colors.hairline,
       }}
     >
-      <Icon
-        size={22}
-        color={color}
-        strokeWidth={focused ? 2.2 : 1.6}
+      {/* Sliding pill indicator */}
+      <Animated.View
+        pointerEvents="none"
+        style={{
+          position: 'absolute',
+          top: PILL_INSET,
+          left: SIDE,
+          width: tabW - PILL_INSET * 2,
+          height: BAR_HEIGHT - PILL_INSET * 2,
+          backgroundColor: colors.accentMuted,
+          borderRadius: BAR_RADIUS - PILL_INSET,
+          transform: [{ translateX: slideX }],
+        }}
       />
+
+      {/* Tab row */}
+      <View style={{ flexDirection: 'row', height: BAR_HEIGHT }}>
+        {state.routes.map((route, index) => {
+          const { options } = descriptors[route.key];
+          const focused = state.index === index;
+          const isCenter = index === centerIdx;
+          const label =
+            (typeof options.tabBarLabel === 'string' ? options.tabBarLabel : null) ??
+            options.title ??
+            route.name;
+
+          const iconColor = focused ? colors.accent : colors.inkSubtle;
+
+          const onPress = () => {
+            const event = navigation.emit({
+              type: 'tabPress',
+              target: route.key,
+              canPreventDefault: true,
+            });
+            if (!focused && !event.defaultPrevented) {
+              navigation.navigate(route.name);
+            }
+          };
+
+          return (
+            <Pressable
+              key={route.key}
+              onPress={onPress}
+              accessibilityRole="button"
+              accessibilityState={{ selected: focused }}
+              accessibilityLabel={options.tabBarAccessibilityLabel ?? label}
+              style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}
+            >
+              {/* Le contenu est contraint à la largeur de la pill */}
+              <View style={{
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 4,
+                paddingHorizontal: PILL_INSET + 2,
+                width: '100%',
+              }}>
+                {options.tabBarIcon?.({ focused, color: iconColor, size: 21 })}
+                <Text
+                  style={{
+                    fontFamily: fonts.bodyMedium,
+                    fontSize: isCenter ? 9.5 : 9,
+                    letterSpacing: 0.5,
+                    textTransform: 'uppercase',
+                    color: focused ? colors.accent : colors.inkSubtle,
+                    opacity: focused ? 1 : 0.65,
+                    width: '100%',
+                    textAlign: 'center',
+                  }}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.75}
+                >
+                  {label}
+                </Text>
+              </View>
+            </Pressable>
+          );
+        })}
+      </View>
     </View>
   );
 }
 
 function MainTabsNavigator() {
-  const { colors, fonts } = useTheme();
-  const insets = useSafeAreaInsets();
-
   return (
     <MainTabs.Navigator
-      screenOptions={{
-        tabBarActiveTintColor: colors.accent,
-        tabBarInactiveTintColor: colors.inkSubtle,
-        headerShown: false,
-        tabBarStyle: {
-          backgroundColor: colors.surfaceElevated,
-          borderTopWidth: StyleSheet.hairlineWidth,
-          borderTopColor: colors.hairline,
-          height: 56 + insets.bottom,
-          paddingTop: 6,
-          paddingBottom: insets.bottom + 4,
-          paddingHorizontal: 8,
-        },
-        tabBarLabelStyle: {
-          fontFamily: fonts.bodyMedium,
-          fontSize: 10,
-          letterSpacing: 0.6,
-          textTransform: 'uppercase',
-          marginTop: 2,
-        },
-        tabBarItemStyle: {
-          paddingVertical: 2,
-        },
-      }}
+      tabBar={(props) => <CustomTabBar {...props} />}
+      screenOptions={{ headerShown: false }}
     >
       <MainTabs.Screen
         name="Dashboard"
@@ -120,6 +227,16 @@ function MainTabsNavigator() {
         }}
       />
       <MainTabs.Screen
+        name="Assistant"
+        component={ChatScreen}
+        options={{
+          tabBarLabel: 'DriveSafe',
+          tabBarIcon: ({ color, focused }) => (
+            <TabIcon Icon={MessageSquare} color={color} focused={focused} />
+          ),
+        }}
+      />
+      <MainTabs.Screen
         name="History"
         component={HistoryScreen}
         options={{
@@ -136,16 +253,6 @@ function MainTabsNavigator() {
           tabBarLabel: 'Stats',
           tabBarIcon: ({ color, focused }) => (
             <TabIcon Icon={BarChart3} color={color} focused={focused} />
-          ),
-        }}
-      />
-      <MainTabs.Screen
-        name="Settings"
-        component={SettingsScreen}
-        options={{
-          tabBarLabel: 'Réglages',
-          tabBarIcon: ({ color, focused }) => (
-            <TabIcon Icon={SettingsIcon} color={color} focused={focused} />
           ),
         }}
       />
@@ -236,6 +343,11 @@ export default function AppNavigator() {
               <RootStack.Screen
                 name="Education"
                 component={EducationScreen}
+                options={{ animation: 'slide_from_right' }}
+              />
+              <RootStack.Screen
+                name="Settings"
+                component={SettingsScreen}
                 options={{ animation: 'slide_from_right' }}
               />
             </>

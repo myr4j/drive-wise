@@ -8,6 +8,7 @@ import {
   View,
 } from 'react-native';
 import {
+  ChevronLeft,
   ChevronRight,
   Download,
   FileText,
@@ -205,6 +206,20 @@ export default function SettingsScreen() {
     >
       {/* Title */}
       <FadeSlideIn duration={360}>
+        <Pressable
+          onPress={() => navigation.goBack()}
+          hitSlop={12}
+          style={({ pressed }) => ({
+            flexDirection: 'row',
+            alignItems: 'center',
+            alignSelf: 'flex-start',
+            marginBottom: spacing.md,
+            opacity: pressed ? 0.6 : 1,
+          })}
+        >
+          <ChevronLeft size={18} color={colors.inkMuted} strokeWidth={2} />
+          <Text style={{ ...typeScale.bodyMd, color: colors.inkMuted, marginLeft: 4 }}>Retour</Text>
+        </Pressable>
         <Text style={{ ...typeScale.caption, color: colors.inkMuted }}>
           Vos préférences
         </Text>

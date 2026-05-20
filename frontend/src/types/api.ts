@@ -202,6 +202,21 @@ export interface FeatureImportanceResponse {
   ranking: string[];
 }
 
+// Chat / assistant types
+export interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+export interface ChatRequest {
+  messages: ChatMessage[];
+}
+
+export interface ChatResponse {
+  role: 'assistant';
+  content: string;
+}
+
 // API Error type
 export interface ApiError {
   detail: string;

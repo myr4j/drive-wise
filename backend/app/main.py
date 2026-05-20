@@ -1,9 +1,13 @@
+from dotenv import load_dotenv
+load_dotenv()
+
 import fastapi
 from fastapi.middleware.cors import CORSMiddleware
 from app.routes.shift import router as shift_router
 from app.routes.auth import router as auth_router
 from app.routes.driver import router as driver_router
 from app.routes.feedback import router as feedback_router
+from app.routes.chat import router as chat_router
 from app.database.init_db import init_db
 
 app = fastapi.FastAPI(
@@ -27,6 +31,7 @@ app.include_router(auth_router)
 app.include_router(shift_router)
 app.include_router(driver_router)
 app.include_router(feedback_router)
+app.include_router(chat_router)
 
 @app.get("/health")
 def health():

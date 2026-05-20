@@ -3,3 +3,4 @@ export { default as useShiftStore } from './shiftStore';
 export { default as useFatigueStore } from './fatigueStore';
 export { default as useNotificationStore } from './notificationStore';
 export { default as usePreferenceStore } from './preferenceStore';
+export { default as useChatStore } from './chatStore';

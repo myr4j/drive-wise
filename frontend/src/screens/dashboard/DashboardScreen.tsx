@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import FadeSlideIn from '@/components/ui/FadeSlideIn';
-import { ArrowRight, Sunrise, Lightbulb } from 'lucide-react-native';
+import { ArrowRight, Sunrise, Lightbulb, Settings as SettingsIcon } from 'lucide-react-native';
 import { getTodayPreShiftTip } from '@/content/advice';
 
 import { useAuthStore, useShiftStore, useNotificationStore, usePreferenceStore } from '@/store';
@@ -19,7 +19,7 @@ import { useToast } from '@/components/ui/Toast';
 import { useTheme } from '@/contexts/ThemeContext';
 import { formatDateTime, formatDuration } from '@/utils/formatters';
 import { ShiftListItem } from '@/types/api';
-import { MainTabsParamList } from '@/types/navigation';
+import { MainTabsParamList, RootStackParamList } from '@/types/navigation';
 
 /**
  * Greeting that adapts to the local hour. Drivers in France will see
@@ -36,7 +36,7 @@ function getGreeting(hour: number): string {
 export default function DashboardScreen() {
   const { colors, fonts, spacing, typeScale, borderRadius } = useTheme();
   const navigation =
-    useNavigation<NativeStackNavigationProp<MainTabsParamList>>();
+    useNavigation<NativeStackNavigationProp<MainTabsParamList & RootStackParamList>>();
   const toast = useToast();
   const { driver } = useAuthStore();
   const { activeShift, setActiveShift, clearActiveShift: clearActiveShiftStore, isOnBreak, startBreak: storeStartBreak, endBreak: storeEndBreak } = useShiftStore();
@@ -194,37 +194,59 @@ export default function DashboardScreen() {
     >
       {/* --- Greeting ----------------------------------------------- */}
       <FadeSlideIn duration={360}>
-        <Text
-          style={{
-            ...typeScale.caption,
-            color: colors.inkMuted,
-          }}
-        >
-          {greeting}
-        </Text>
-        <Text
-          style={{
-            fontFamily: fonts.displayItalic,
-            fontSize: 40,
-            lineHeight: 48,
-            color: colors.ink,
-            marginTop: 4,
-            letterSpacing: -0.4,
-          }}
-        >
-          {firstName}.
-        </Text>
-        <Text
-          style={{
-            ...typeScale.bodyLg,
-            color: colors.inkMuted,
-            marginTop: 4,
-          }}
-        >
-          {activeShift
-            ? 'Votre trajet est en cours.'
-            : 'Prêt à reprendre la route ?'}
-        </Text>
+        <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+          <View style={{ flex: 1 }}>
+            <Text
+              style={{
+                ...typeScale.caption,
+                color: colors.inkMuted,
+              }}
+            >
+              {greeting}
+            </Text>
+            <Text
+              style={{
+                fontFamily: fonts.displayItalic,
+                fontSize: 40,
+                lineHeight: 48,
+                color: colors.ink,
+                marginTop: 4,
+                letterSpacing: -0.4,
+              }}
+            >
+              {firstName}.
+            </Text>
+            <Text
+              style={{
+                ...typeScale.bodyLg,
+                color: colors.inkMuted,
+                marginTop: 4,
+              }}
+            >
+              {activeShift
+                ? 'Votre trajet est en cours.'
+                : 'Prêt à reprendre la route ?'}
+            </Text>
+          </View>
+          <Pressable
+            onPress={() => navigation.navigate('Settings')}
+            hitSlop={12}
+            accessibilityLabel="Ouvrir les réglages"
+            style={({ pressed }) => ({
+              width: 40,
+              height: 40,
+              borderRadius: 20,
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: colors.surfaceElevated,
+              borderWidth: StyleSheet.hairlineWidth,
+              borderColor: colors.hairline,
+              opacity: pressed ? 0.7 : 1,
+            })}
+          >
+            <SettingsIcon size={18} color={colors.inkMuted} strokeWidth={2} />
+          </Pressable>
+        </View>
       </FadeSlideIn>
 
       {/* --- Active shift hero OR start CTA ------------------------- */}

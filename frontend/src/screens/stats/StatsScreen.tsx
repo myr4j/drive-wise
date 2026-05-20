@@ -187,7 +187,7 @@ export default function StatsScreen() {
               marginBottom: spacing.sm,
             }}
           >
-            Distribution de fatigue
+            Répartition des niveaux de fatigue
           </Text>
           <Card>
             <PieChart
@@ -647,11 +647,13 @@ function FeatureImportanceChart({
     );
   }
 
+  // On ne garde que les facteurs qui atteignent au moins 1% arrondi
   const sortedFeatures = ranking
     .map((feature) => ({
       feature,
       importance: featureImportance[feature] || 0,
     }))
+    .filter((f) => Math.round(f.importance * 100) >= 1)
     .sort((a, b) => b.importance - a.importance);
 
   const maxImportance = Math.max(
@@ -659,42 +661,44 @@ function FeatureImportanceChart({
     0.01
   );
 
+  // Le backend retourne déjà des labels français — on les capitalise proprement
   const formatFeatureName = (name: string) => {
-    const translations: Record<string, string> = {
-      shift_duration_h: 'Durée du trajet',
-      time_since_last_break_min: 'Depuis la dernière pause',
-      is_night: 'Conduite de nuit',
-      driving_ratio: 'Ratio de conduite',
-      break_ratio_inv: 'Déficit de pauses',
-      is_post_lunch_dip: 'Creux post-déjeuner',
-      active_driving_h: 'Heures actives',
-      hour_sin: 'Moment de la journée',
-      hour_cos: 'Moment de la journée',
+    const overrides: Record<string, string> = {
+      'conduite de nuit': 'Conduite de nuit',
+      'temps de conduite': 'Heures actives',
+      'creux post-déjeuner': 'Creux post-déjeuner',
+      'temps depuis dernière pause': 'Temps sans pause',
+      'durée du shift': 'Durée du trajet',
+      'ratio de conduite': 'Ratio de conduite',
+      'durée totale des pauses': 'Durée des pauses',
+      'nombre de pauses': 'Nombre de pauses',
+      'heure (cycle circadien)': 'Heure de la journée',
     };
-    return translations[name] || name;
+    return overrides[name] ?? (name.charAt(0).toUpperCase() + name.slice(1));
   };
 
   const getDescription = (name: string) => {
     const descriptions: Record<string, string> = {
-      shift_duration_h:
-        'La durée totale du trajet depuis le démarrage. Plus le trajet est long, plus la fatigue augmente.',
-      time_since_last_break_min:
-        "Le temps écoulé depuis votre dernière pause. Au-delà de 2h sans pause, la fatigue augmente significativement.",
-      is_night:
-        'Conduite pendant la nuit (minuit à 6h). Le corps est naturellement plus fatigué pendant ces heures.',
-      driving_ratio:
-        "Proportion du temps passée à conduire réellement (vitesse > 5 km/h) par rapport au temps total.",
-      break_ratio_inv:
-        'Inverse du ratio de pauses. Un score élevé indique un manque de pauses régulières.',
-      is_post_lunch_dip:
-        'Période de 13h à 16h où la vigilance diminue naturellement.',
-      active_driving_h:
-        "Nombre d'heures de conduite effective (vitesse > 5 km/h).",
-      hour_sin:
-        "Représentation cyclique de l'heure pour capturer les variations circadiennes.",
-      hour_cos: "Représentation cyclique complémentaire de l'heure.",
+      'conduite de nuit':
+        'Conduite entre minuit et 6h du matin. Le corps est naturellement moins vigilant pendant ces heures — facteur de risque majeur.',
+      'temps de conduite':
+        "Le nombre d'heures passées à conduire effectivement (vitesse > 5 km/h). Plus ce temps est long, plus la fatigue s'accumule.",
+      'creux post-déjeuner':
+        'Période de 13h à 16h où la vigilance diminue naturellement après le repas de midi.',
+      'temps depuis dernière pause':
+        'Le temps écoulé depuis votre dernière pause. Au-delà de 2h sans pause, la fatigue augmente significativement.',
+      'durée du shift':
+        'La durée totale du trajet depuis le démarrage, pauses incluses.',
+      'ratio de conduite':
+        'Proportion du temps passée à conduire réellement par rapport au temps total du trajet.',
+      'durée totale des pauses':
+        'Durée cumulée de toutes les pauses prises pendant le trajet.',
+      'nombre de pauses':
+        'Nombre de pauses effectuées. Des pauses régulières réduisent la fatigue accumulée.',
+      'heure (cycle circadien)':
+        "L'heure à laquelle vous conduisez influence la vigilance selon votre horloge biologique.",
     };
-    return descriptions[name] || 'Facteur influençant la fatigue au volant.';
+    return descriptions[name] ?? 'Facteur influençant la fatigue au volant.';
   };
 
   return (
@@ -741,7 +745,7 @@ function FeatureImportanceChart({
             >
               <View
                 style={{
-                  width: `${(item.importance / maxImportance) * 100}%`,
+                  width: `${Math.max((item.importance / maxImportance) * 100, 3)}%`,
                   height: '100%',
                   backgroundColor: featureColor,
                   borderRadius: 3,
@@ -757,7 +761,7 @@ function FeatureImportanceChart({
                 color: featureColor,
               }}
             >
-              {Math.round(item.importance * 100)}%
+              {`${Math.round(item.importance * 100)}%`}
             </Text>
           </Pressable>
         );
