@@ -27,6 +27,7 @@ import {
   BookOpen,
   MessageSquare,
   Briefcase,
+  Sparkles,
 } from 'lucide-react-native';
 import FadeSlideIn from '@/components/ui/FadeSlideIn';
 
@@ -35,7 +36,7 @@ import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import { useToast } from '@/components/ui/Toast';
-import { useAuthStore, useNotificationStore, usePreferenceStore } from '@/store';
+import { useAuthStore, useNotificationStore, usePreferenceStore, useTutorialStore } from '@/store';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '@/types/navigation';
@@ -97,6 +98,13 @@ export default function SettingsScreen() {
   const {
     work_days, typical_start_h, typical_end_h, revenue_goal, update: updatePrefs,
   } = usePreferenceStore();
+
+  const { reset: resetTutorial } = useTutorialStore();
+
+  const handleReplayTutorial = async () => {
+    await resetTutorial();
+    navigation.goBack();
+  };
 
   const handleSendFeedback = async () => {
     if (feedbackMessage.trim().length < 5) {
@@ -346,6 +354,14 @@ export default function SettingsScreen() {
 
       {/* Feedback */}
       <Section title="Aide & Feedback">
+        <SettingsRow
+          icon={<Sparkles size={18} color={colors.inkMuted} />}
+          title="Revoir le tutoriel"
+          subtitle="Réafficher la présentation de l'application"
+          onPress={handleReplayTutorial}
+          showChevron
+        />
+        <Divider />
         <SettingsRow
           icon={<MessageSquare size={18} color={colors.inkMuted} />}
           title="Envoyer un retour"
