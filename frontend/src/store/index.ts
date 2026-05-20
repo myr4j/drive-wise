@@ -4,3 +4,4 @@ export { default as useFatigueStore } from './fatigueStore';
 export { default as useNotificationStore } from './notificationStore';
 export { default as usePreferenceStore } from './preferenceStore';
 export { default as useChatStore } from './chatStore';
+export { default as useTutorialStore } from './tutorialStore';
