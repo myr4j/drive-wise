@@ -6,7 +6,8 @@ import FadeSlideIn from '@/components/ui/FadeSlideIn';
 import { ArrowRight, Sunrise, Lightbulb, Settings as SettingsIcon } from 'lucide-react-native';
 import { getTodayPreShiftTip } from '@/content/advice';
 
-import { useAuthStore, useShiftStore, useNotificationStore, usePreferenceStore } from '@/store';
+import { useAuthStore, useShiftStore, useNotificationStore, usePreferenceStore, useTutorialStore } from '@/store';
+import { TutorialModal } from '@/components/tutorial';
 import { Coffee, Square } from 'lucide-react-native';
 import { scheduleSessionEndReminder, cancelSessionEndReminder } from '@/services/notifications';
 import { Alert } from 'react-native';
@@ -50,6 +51,30 @@ export default function DashboardScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
   const [isFirstLoad, setIsFirstLoad] = useState(true);
+
+  // Tutoriel d'onboarding : s'affiche tant que l'utilisateur n'a pas coché « ne plus afficher »
+  const {
+    dismissed: tutorialDismissed,
+    isLoaded: tutorialLoaded,
+    hydrate: hydrateTutorial,
+    dismiss: dismissTutorial,
+  } = useTutorialStore();
+  const [tutorialOpen, setTutorialOpen] = useState(false);
+
+  useEffect(() => {
+    if (!tutorialLoaded) hydrateTutorial();
+  }, [tutorialLoaded, hydrateTutorial]);
+
+  useEffect(() => {
+    if (tutorialLoaded && !tutorialDismissed) {
+      setTutorialOpen(true);
+    }
+  }, [tutorialLoaded, tutorialDismissed]);
+
+  const handleTutorialClose = async (shouldRemember: boolean) => {
+    setTutorialOpen(false);
+    if (shouldRemember) await dismissTutorial();
+  };
 
   const loadData = useCallback(async () => {
     if (!driver) return;
@@ -179,6 +204,7 @@ export default function DashboardScreen() {
   const firstName = driver?.username?.split(' ')[0] ?? 'Conducteur';
 
   return (
+    <>
     <Screen
       scrollable
       glow
@@ -469,6 +495,8 @@ export default function DashboardScreen() {
         )}
       </FadeSlideIn>
     </Screen>
+    <TutorialModal visible={tutorialOpen} onClose={handleTutorialClose} />
+    </>
   );
 }
 
