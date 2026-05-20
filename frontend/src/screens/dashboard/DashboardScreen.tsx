@@ -56,6 +56,7 @@ export default function DashboardScreen() {
   const {
     dismissed: tutorialDismissed,
     isLoaded: tutorialLoaded,
+    replayCount: tutorialReplayCount,
     hydrate: hydrateTutorial,
     dismiss: dismissTutorial,
   } = useTutorialStore();
@@ -65,11 +66,13 @@ export default function DashboardScreen() {
     if (!tutorialLoaded) hydrateTutorial();
   }, [tutorialLoaded, hydrateTutorial]);
 
+  // Ouvre le modal au premier rendu après hydratation si non-dismissed,
+  // ou à chaque clic sur « Revoir le tutoriel » dans Settings (replayCount).
   useEffect(() => {
     if (tutorialLoaded && !tutorialDismissed) {
       setTutorialOpen(true);
     }
-  }, [tutorialLoaded, tutorialDismissed]);
+  }, [tutorialLoaded, tutorialDismissed, tutorialReplayCount]);
 
   const handleTutorialClose = async (shouldRemember: boolean) => {
     setTutorialOpen(false);
