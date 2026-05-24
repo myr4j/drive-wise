@@ -41,6 +41,10 @@ fonts:
 .dw-kpi .l { font-size: 0.65rem; color: var(--dw-ink-muted); margin-top: 0.3rem; text-transform: uppercase; letter-spacing: 0.07em; font-weight: 600; }
 .dw-icon-pill { width: 36px; height: 36px; border-radius: 10px; background: var(--dw-accent-soft); display: flex; align-items: center; justify-content: center; font-size: 1.1rem; }
 .dw-quote { font-style: italic; color: var(--dw-ink-muted); }
+.dw-phone { display: inline-block; background: #0A1628; border-radius: 26px; padding: 16px 6px 6px; box-shadow: 0 10px 26px rgba(10,22,40,0.22); position: relative; }
+.dw-phone::before { content: ''; position: absolute; top: 7px; left: 50%; transform: translateX(-50%); width: 58px; height: 5px; background: #38445E; border-radius: 3px; }
+.dw-phone img { display: block; width: auto; border-radius: 4px 4px 20px 20px; }
+.dw-phone-cap { text-align: center; font-size: 0.72rem; color: var(--dw-ink-muted); margin-top: 0.5rem; font-weight: 600; }
 </style>
 
 <div class="flex justify-center mb-4">
@@ -180,12 +184,13 @@ layout: default
 
 # Fonctionnalités utilisateur
 
-<div class="grid grid-cols-4 gap-3 mt-6">
+<div class="grid grid-cols-3 gap-3 mt-6">
 
 <div class="dw-card"><div class="dw-icon-pill mb-2">🚦</div><div class="font-bold text-sm">Démarrer un trajet</div><div class="text-xs muted mt-1">Un tap depuis le dashboard, permission GPS demandée une seule fois.</div></div>
 <div class="dw-card"><div class="dw-icon-pill mb-2">📊</div><div class="font-bold text-sm">Jauge de fatigue</div><div class="text-xs muted mt-1">Score 0 à 1 en continu, code couleur, niveau lisible.</div></div>
 <div class="dw-card"><div class="dw-icon-pill mb-2">💡</div><div class="font-bold text-sm">Conseils bienveillants</div><div class="text-xs muted mt-1">Messages courts en français, jamais autoritaires.</div></div>
 <div class="dw-card"><div class="dw-icon-pill mb-2">🔍</div><div class="font-bold text-sm">Comprendre le score</div><div class="text-xs muted mt-1">Facteurs qui augmentent ou réduisent la fatigue.</div></div>
+<div class="dw-card"><div class="dw-icon-pill mb-2">💬</div><div class="font-bold text-sm">Assistant conversationnel</div><div class="text-xs muted mt-1">Chatbot IA qui répond sur la fatigue et tes statistiques personnelles.</div></div>
 <div class="dw-card"><div class="dw-icon-pill mb-2">📈</div><div class="font-bold text-sm">Historique et stats</div><div class="text-xs muted mt-1">Tendance 7 jours, indicateurs globaux, liste des trajets.</div></div>
 <div class="dw-card"><div class="dw-icon-pill mb-2">🔔</div><div class="font-bold text-sm">Notifications</div><div class="text-xs muted mt-1">Rappels début et fin, mode discret, personnalisation.</div></div>
 <div class="dw-card"><div class="dw-icon-pill mb-2">🛡️</div><div class="font-bold text-sm">Vie privée</div><div class="text-xs muted mt-1">Consentement, export JSON, suppression, pauses manuelles.</div></div>
@@ -239,6 +244,24 @@ layout: default
 
 <div class="mt-6 dw-card-accent">
 <div class="text-sm muted">Chaque snapshot déclenche cette boucle complète en quelques centaines de millisecondes. Tout vit dans une seule API FastAPI, le modèle XGBoost est chargé en mémoire au démarrage du serveur.</div>
+</div>
+
+---
+layout: default
+---
+
+# Assistant conversationnel
+
+<div class="text-base muted mt-3">Un chatbot intégré à l'app qui répond aux questions du conducteur sur sa fatigue et ses statistiques personnelles.</div>
+
+<div class="grid grid-cols-3 gap-4 mt-8">
+<div class="dw-card"><div class="dw-icon-pill mb-3">🎯</div><div class="font-bold">Contexte personnalisé</div><div class="text-sm mt-2 muted">Le profil du conducteur (5 derniers trajets, scores, pauses) est injecté dans le prompt. L'assistant cite ses vrais chiffres, n'en invente jamais.</div></div>
+<div class="dw-card"><div class="dw-icon-pill mb-3">📚</div><div class="font-bold">Base de connaissances</div><div class="text-sm mt-2 muted">6 thèmes sur la fatigue (sommeil, pauses, rythme circadien, hydratation…) ancrent les réponses dans des conseils fiables.</div></div>
+<div class="dw-card"><div class="dw-icon-pill mb-3">🛡️</div><div class="font-bold">Garde-fous</div><div class="text-sm mt-2 muted">Reste dans son domaine, jamais de diagnostic médical, ton bienveillant, mémoire glissante de 10 messages.</div></div>
+</div>
+
+<div class="mt-8 text-center text-xs subtle">
+Groq · Llama 3.3 70B · réponses en français, repli sur un message d'attente si le service est hors-ligne.
 </div>
 
 ---
@@ -323,8 +346,8 @@ layout: default
 
 <div class="dw-card">
 <div class="dw-label">LLM</div>
-<div class="text-base font-bold mt-1">Groq · Llama 3.2</div>
-<div class="text-xs muted mt-1">Suggestions FR · fallback codé en dur si offline</div>
+<div class="text-base font-bold mt-1">Groq · Llama 3.2 / 3.3</div>
+<div class="text-xs muted mt-1">Suggestions (3.2) + assistant chatbot (3.3 70B) · fallback si offline</div>
 </div>
 
 <div class="dw-card">
@@ -425,14 +448,22 @@ layout: default
 
 # Démonstration, parcours conducteur
 
-<div class="grid grid-cols-3 gap-3 mt-6">
+<div class="flex justify-center items-start gap-8 mt-8">
 
-<div class="dw-card"><div class="dw-label">ÉTAPE 1</div><div class="font-bold mt-1">Démarrage</div><div class="text-sm muted mt-2">Lancement d'un trajet depuis le dashboard. Permission GPS demandée une seule fois.</div></div>
-<div class="dw-card"><div class="dw-label">ÉTAPE 2</div><div class="font-bold mt-1">Trajet en cours</div><div class="text-sm muted mt-2">Snapshots toutes les 30 s : vitesse, position, ratio de conduite active.</div></div>
-<div class="dw-card"><div class="dw-label">ÉTAPE 3</div><div class="font-bold mt-1">Jauge de fatigue</div><div class="text-sm muted mt-2">Score entre 0 et 1 mis à jour en continu, couleur du vert au rouge.</div></div>
-<div class="dw-card"><div class="dw-label">ÉTAPE 4</div><div class="font-bold mt-1">Conseil IA</div><div class="text-sm muted mt-2">Au franchissement du seuil, un message court et bienveillant apparaît.</div></div>
-<div class="dw-card"><div class="dw-label">ÉTAPE 5</div><div class="font-bold mt-1">Pause détectée</div><div class="text-sm muted mt-2">Vitesse &lt; 5 km/h pendant 2 min → pause comptée automatiquement.</div></div>
-<div class="dw-card"><div class="dw-label">ÉTAPE 6</div><div class="font-bold mt-1">Fin de trajet</div><div class="text-sm muted mt-2">Résumé : durée, pauses, distance, score moyen, top facteurs SHAP.</div></div>
+<div class="text-center">
+<div class="dw-phone"><img src="/screenshots/Dashboard.png" style="height: 366px;" /></div>
+<div class="dw-phone-cap">Dashboard · démarrage du trajet</div>
+</div>
+
+<div class="text-center">
+<div class="dw-phone"><img src="/screenshots/Trajet%20en%20cours.png" style="height: 366px;" /></div>
+<div class="dw-phone-cap">Trajet en cours · jauge de fatigue</div>
+</div>
+
+<div class="text-center">
+<div class="dw-phone"><img src="/screenshots/Chatbot.png" style="height: 366px;" /></div>
+<div class="dw-phone-cap">Assistant conversationnel</div>
+</div>
 
 </div>
 
@@ -440,37 +471,18 @@ layout: default
 layout: default
 ---
 
-# Captures live à projeter
+# Historique &amp; statistiques
 
-<div class="grid grid-cols-2 gap-6 mt-4">
+<div class="flex justify-center items-start gap-16 mt-8">
 
-<div>
-<div class="dw-label mb-2">Écrans à montrer pendant la démo</div>
-<ul class="text-sm space-y-2 muted mt-3">
-<li><strong style="color: var(--dw-ink);">Dashboard</strong>, greeting contextuel, dernier trajet, bouton Démarrer</li>
-<li><strong style="color: var(--dw-ink);">Trajet actif</strong>, jauge animée, suggestion in-app</li>
-<li><strong style="color: var(--dw-ink);">Détail SHAP</strong>, top contributeurs ↑ et ↓</li>
-<li><strong style="color: var(--dw-ink);">Réglages RGPD</strong>, consentement, export, suppression</li>
-<li><strong style="color: var(--dw-ink);">Stats</strong>, tendance 7 jours</li>
-</ul>
+<div class="text-center">
+<div class="dw-phone"><img src="/screenshots/Historique.png" style="height: 380px;" /></div>
+<div class="dw-phone-cap">Historique des trajets</div>
 </div>
 
-<div class="dw-card">
-<div class="dw-label mb-3">Exemple de dialogue</div>
-<div class="space-y-2 text-sm">
-<div style="background: var(--dw-accent-soft); border-radius: 12px 12px 12px 4px; padding: 0.55rem 0.8rem;">
-<div style="color: var(--dw-accent-dark); font-weight: 700; font-size: 0.7rem;">🚗 DriveWise</div>
-<div class="mt-1">Tu conduis depuis 4h sans pause. Une halte de 10 min t'aiderait.</div>
-</div>
-<div style="background: #FFFFFF; border: 1px solid var(--dw-hairline); border-radius: 12px 12px 4px 12px; padding: 0.55rem 0.8rem; text-align: right;">
-<div style="font-weight: 700; font-size: 0.7rem;">👨 Samir</div>
-<div class="mt-1">OK, je m'arrête au prochain.</div>
-</div>
-<div style="background: var(--dw-accent-soft); border-radius: 12px 12px 12px 4px; padding: 0.55rem 0.8rem;">
-<div style="color: var(--dw-accent-dark); font-weight: 700; font-size: 0.7rem;">🚗 DriveWise</div>
-<div class="mt-1">Pause détectée. Bonne récup ☕</div>
-</div>
-</div>
+<div class="text-center">
+<div class="dw-phone"><img src="/screenshots/Statistiques.png" style="height: 380px;" /></div>
+<div class="dw-phone-cap">Statistiques · tendance 7 jours</div>
 </div>
 
 </div>
@@ -590,7 +602,7 @@ layout: default
 
 <div class="grid grid-cols-12 gap-3 items-center dw-card">
 <div class="col-span-2"><span class="dw-badge" style="background: var(--dw-accent); color: white;">Sprint 5</span></div>
-<div class="col-span-8"><div class="font-bold text-sm">RGPD, notifications, refonte graphique, recette</div><div class="text-xs muted">Consentement, export, mode discret, polish UI, cahier de recette.</div></div>
+<div class="col-span-8"><div class="font-bold text-sm">RGPD, notifications, assistant chatbot, refonte graphique, recette</div><div class="text-xs muted">Consentement, export, mode discret, assistant conversationnel, polish UI, cahier de recette.</div></div>
 <div class="col-span-2 text-right text-sm"><span class="accent">●</span> <span class="muted">En cours</span></div>
 </div>
 
